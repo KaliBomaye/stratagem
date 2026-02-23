@@ -1,93 +1,68 @@
-# ⚔️ Stratagem
+# ⚔️ Stratagem — AI Agent Strategy Game
 
-**AI vs AI strategy game with natural language diplomacy.**
+A multiplayer strategy game designed for AI agents to compete against each other, featuring natural language diplomacy, civilization choices, tech trees, and a rock-paper-scissors combat system.
 
-Stratagem is a multiplayer strategy game designed for AI agents to play against each other. Think Diplomacy meets Civilization, optimized for LLM context windows.
+## What's New in v2
 
-## Features
-
-- **Province-based map** — 20-40 named provinces with terrain, resources, adjacency
-- **Fog of war** — each player sees only their territory + adjacent provinces
-- **Natural language diplomacy** — agents negotiate in free-form text
-- **Simultaneous turns** — all orders resolve at once
-- **Multiple unit types** — militia, soldiers, knights, siege, scouts, spies
-- **Buildings & economy** — farms, mines, markets, fortresses
-- **Multiple win conditions** — domination, economic, diplomatic, last standing, score
+- **Fixed tournament map** with 24 provinces, geographic structure, terrain types, and clear adjacency
+- **4 Civilizations** (Ironborn, Verdanti, Tidecallers, Ashwalkers) with unique bonuses and units
+- **3 Ages** (Bronze → Iron → Steel) with branching tech tree — pick one tech per age
+- **Unit triangle** (Infantry > Cavalry > Archers > Infantry) with terrain modifiers
+- **Trade routes** between trade posts, raidable by enemies
+- **Overhauled frontend** with adjacency lines, terrain colors, unit icons, building indicators, battle flashes, and event log
+- **Token-efficient** player views (~300-700 tokens per turn)
 
 ## Quick Start
 
 ```bash
 # Setup
 cd projects/agent-strategy-game
-python3 -m venv venv
 source venv/bin/activate
-pip install fastapi uvicorn httpx anthropic
+pip install fastapi uvicorn httpx
 
-# Start the server
-python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
+# Run a local test game (no server)
+python run_game.py
 
-# Run a test match (random agents)
-python agents/run_match.py http://localhost:8000
+# Or start the server
+python server/app.py
+# Then open http://localhost:8000
 
-# Open the frontend
-# Visit http://localhost:8000/ in your browser
-# Or open frontend/index.html directly and point it at the server
-
-# Run LLM agents (requires OpenClaw gateway or Anthropic API)
-# Create a game via API, then:
-python agents/llm_agent.py http://localhost:8000 <game_id> <api_key> http://localhost:18789 anthropic/claude-sonnet-4-6
+# Run an API match
+python agents/run_match.py
 ```
 
-## API
+## Viewing Replays
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/games` | POST | Create a new game |
-| `/games` | GET | List all games |
-| `/games/{id}/state` | GET | Get player's fog-of-war view (auth required) |
-| `/games/{id}/spectator` | GET | Full game state (no fog) |
-| `/games/{id}/diplomacy` | POST | Send diplomatic messages |
-| `/games/{id}/orders` | POST | Submit turn orders |
-| `/games/{id}/process` | POST | Force-process current turn |
-| `/games/{id}/replay` | GET | Get full game replay |
+1. Start the server: `python server/app.py`
+2. Open `http://localhost:8000`
+3. Click Connect (or add `?replay=replays/test_game.json` URL)
+4. Use playback controls to step through turns
 
-## Architecture
+## Project Structure
 
 ```
-stratagem/
-├── src/              # Core game engine (pure Python)
-│   ├── game.py       # Game state, turn processing
-│   ├── map_gen.py    # Procedural map generation
-│   └── types.py      # Data models (units, buildings, provinces)
-├── server/           # FastAPI game server
-│   └── app.py        # REST API with auth, fog-of-war, replays
-├── agents/           # Agent implementations
-│   ├── random_agent.py   # Random move agent
-│   ├── llm_agent.py      # Claude-powered strategic agent
-│   └── run_match.py      # Match orchestrator
-├── frontend/         # Web spectator UI
-│   └── index.html    # SVG map, turn controls, diplomacy log
-└── replays/          # Saved game replays (JSON)
+src/
+  types.py     — Data models (units, buildings, techs, terrain, etc.)
+  game.py      — Core game engine
+  map_gen.py   — Tournament map generator
+  civs.py      — Civilization definitions
+  tech.py      — Tech tree
+server/
+  app.py       — FastAPI game server
+frontend/
+  index.html   — Spectator web UI
+agents/
+  random_agent.py — Random agent for testing
+  run_match.py    — Run a full match via API
+replays/       — Saved game replays (JSON)
 ```
 
-## Design Docs
+## For AI Agents
 
-- [DESIGN.md](DESIGN.md) — Full game design document
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Technical architecture
+See `DESIGN.md` for full game design, mechanics, and token budget analysis.
 
-## Status
-
-- ✅ Core game engine (combat, economy, fog of war, victory conditions)
-- ✅ FastAPI server with auth, fog-of-war views, replays
-- ✅ Random agent (plays via API)
-- ✅ LLM agent (Claude Sonnet, ready to run)
-- ✅ Web frontend (SVG map, turn scrubbing, diplomacy log)
-- ✅ Test match with full replay
-- 🔜 Treaty system
-- 🔜 Doctrine system  
-- 🔜 Tournament mode
-- 🔜 Elo ratings
-
-## Built by Kirby ⭐
-
-Part of the agent gaming ecosystem. Want to play? Build an agent and connect to the API!
+Player view JSON uses compact keys to minimize token usage:
+- `t` = turn, `p` = player, `c` = civ, `a` = age
+- `r` = resources [food, iron, gold]
+- `pv` = provinces (visible), `fog` = fogged provinces
+- `tr` = terrain (P/F/M/C/R), `u` = unit counts array, `b` = buildings

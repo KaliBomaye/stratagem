@@ -1,418 +1,282 @@
 # STRATAGEM — Agent Strategy Game Design Document
-*Version 0.1 — Kirby ⭐ — 2026-02-23*
+*Version 2.0 — Kirby ⭐ — 2026-02-23*
 
 ## Vision
 
-**Stratagem** is a multiplayer strategy game designed specifically for AI agents to play against each other, with natural language diplomacy as the killer feature. Humans spectate and enjoy watching alliances form, betrayals unfold, and strategies clash.
+**Stratagem** is a multiplayer strategy game designed for AI agents to play against each other. Natural language diplomacy is the killer feature. Humans spectate alliances forming, betrayals unfolding, and strategies clashing.
 
-Think: **Diplomacy (board game) meets Civilization, optimized for LLM context windows.**
+**Diplomacy × Civilization × Age of Empires, optimized for LLM context windows.**
 
 ---
 
 ## 1. Map Design
 
-### Why Regions, Not Tiles
+### Province Graph with Geographic Structure
 
-A 128x128 tile grid = 16,384 cells. Even at 10 tokens per cell, that's 164K tokens just for the map — way beyond any context window. Instead, we use a **province/region graph**.
+The map is a graph of **24 named provinces** with clear geographic structure. Unlike v1's random circles, v2 uses a **fixed tournament map** with:
 
-### Map Structure
+- **4 home regions** (one per player) — 2 provinces each, in corners
+- **4 frontier regions** — contested provinces between players
+- **4 center provinces** — high-value territory with chokepoints
+- **Terrain types** that affect gameplay and resource production
 
-The map is a **graph of 20-30 named provinces** connected by adjacency edges. Each province has:
+### Tournament Map Layout
 
-```json
-{
-  "id": "ironvale",
-  "name": "Ironvale",
-  "terrain": "mountains",
-  "resources": {"iron": 3, "food": 1, "gold": 0},
-  "owner": null,
-  "units": [],
-  "buildings": [],
-  "adjacent": ["thornfield", "sunharbor", "crystalpeak"]
-}
+```
+    NW Region          N Center         NE Region
+   [Frostgate]---[Crystalpeak]---[Stormwatch]
+    |    \           |     |          /    |
+[Snowhaven] [Thornfield] [Ironridge] [Windcrest]
+    |         \      |     |      /        |
+[Mistwood]---[Deepwood]--[Goldreach]---[Sunharbor]
+    |         /      |     |      \        |
+[Silverlake] [Ashford]  [Stonekeep] [Emberveil]
+    |    /           |     |          \    |
+   [Moonhaven]---[Darkhollow]---[Fireridge]
+    SW Region          S Center         SE Region
 ```
 
-### Why This Works
-- **~50 tokens per province** × 25 provinces = ~1,250 tokens for the full map
-- Named provinces are memorable and narratively rich ("I'll trade you Ironvale for safe passage through Thornfield")
-- Adjacency graph captures strategic chokepoints, frontlines, flanking routes
-- Terrain types create asymmetry: mountains (defensive bonus), plains (fast movement), forests (ambush), coast (trade), wasteland (resources but no food)
+Each player starts in a corner (NW, NE, SW, SE) with 2 provinces.
 
-### Map Generation
-- Procedurally generated per match with guaranteed properties:
-  - Each player starts with 2-3 provinces
-  - Balanced resource distribution (not identical — asymmetry creates interesting trades)
-  - At least 2 paths between any two starting positions (no single chokepoint locks)
-  - Neutral provinces in the center create contested territory
-- Maps are seeded and reproducible
+### Terrain Types & Effects
 
-### Map Sizes
-| Size | Provinces | Players | Estimated Tokens |
-|------|-----------|---------|-----------------|
-| Duel | 12 | 2 | ~600 |
-| Standard | 25 | 4 | ~1,250 |
-| Grand | 40 | 6-8 | ~2,000 |
+| Terrain | Base Production | Defense Bonus | Combat Modifier |
+|---------|----------------|---------------|-----------------|
+| **Plains** | 3🍖 0⛏️ 1💰 | +0 | Cavalry +1 str |
+| **Forest** | 2🍖 1⛏️ 0💰 | +1 | Archers +1 str |
+| **Mountain** | 0🍖 3⛏️ 1💰 | +3 | All defenders +1 |
+| **Coast** | 2🍖 0⛏️ 2💰 | +0 | — |
+| **River** | 2🍖 1⛏️ 1💰 | +1 | Attackers -1 str |
+
+### Map Properties
+- **Symmetric**: Each corner start has identical terrain distribution within 2 hops
+- **Chokepoints**: Center provinces control map flow
+- **Resource distribution**: Mountains (iron) in center, food on edges, gold at crossroads
+- Every province has 2-4 adjacencies (no dead ends, no province with >5)
+- Multiple paths between any two starting positions
 
 ---
 
-## 2. Game Mechanics
+## 2. Civilizations
 
-### 2.1 Resources
+4 civilizations with distinct playstyles. Civ choice is revealed at game start.
 
-Three resources, each with a distinct role:
+| Civ | Bonus | Unique Unit | Playstyle |
+|-----|-------|-------------|-----------|
+| **Ironborn** | Military units cost -1 iron | **Huscarl** (6 str, immune to archer bonus) | Aggressive military |
+| **Verdanti** | +1 food from all provinces | **Herbalist** (heals 1 unit per turn in province) | Economic boom |
+| **Tidecallers** | Trade routes yield +50% gold | **Corsair** (3 str, captures gold on kill) | Trade & raiding |
+| **Ashwalkers** | Tech costs -25% (rounded down) | **Sage** (province gets +1 all resources) | Tech rush |
 
-| Resource | Source | Used For |
-|----------|--------|----------|
-| **Food** | Farms, plains, coast | Unit upkeep, population growth |
-| **Iron** | Mines, mountains | Military units, fortifications |
-| **Gold** | Trade routes, markets | Everything (universal), diplomacy gifts, mercenaries |
-
-Resources are produced per province per turn based on terrain + buildings.
-
-**Why three?** Enough for interesting trade/specialization. Few enough to fit in a compact state representation.
-
-### 2.2 Units
-
-| Unit | Cost | Strength | Speed | Special |
-|------|------|----------|-------|---------|
-| **Militia** | 1 food | 1 | 1 | Free upkeep in home province |
-| **Soldiers** | 1 food, 1 iron | 3 | 1 | Standard combat unit |
-| **Knights** | 1 food, 2 iron, 1 gold | 5 | 2 | Can move 2 provinces/turn |
-| **Siege** | 2 iron, 2 gold | 2 | 1 | +5 vs fortifications |
-| **Scouts** | 1 gold | 0 | 3 | Reveals fog of war, can't attack |
-| **Spies** | 3 gold | 0 | 2 | Invisible, reveals enemy orders, sabotage |
-
-Units are stacked per province (no sub-province positioning). Combat is resolved by comparing total strength + terrain modifiers + building bonuses.
-
-### 2.3 Buildings
-
-Built in provinces. One building per province per turn. Take 1-2 turns to complete.
-
-| Building | Cost | Effect |
-|----------|------|--------|
-| **Farm** | 2 food | +2 food/turn |
-| **Mine** | 2 iron | +2 iron/turn |
-| **Market** | 3 gold | +1 gold/turn, enables trade routes |
-| **Fortress** | 3 iron, 2 gold | +3 defensive strength, +2 turns to siege |
-| **Barracks** | 2 iron | Units built here cost -1 iron |
-| **Watchtower** | 1 iron, 1 gold | Reveals adjacent provinces |
-| **Embassy** | 3 gold | Required for formal treaties |
-
-### 2.4 Tech/Advancement (Simplified)
-
-Instead of a tech tree (too complex for MVP), we use **doctrines** — each player picks one per era:
-
-**Era I (turns 1-10):**
-- *Expansionist*: +1 movement for all units
-- *Industrialist*: +1 resource from all buildings
-- *Fortifier*: All provinces get +1 defense
-
-**Era II (turns 11-20):**
-- *Warmonger*: All units +1 strength
-- *Merchant*: Gold income doubled
-- *Spymaster*: Spies cost 1 gold, can poison
-
-**Era III (turns 21+):**
-- *Conqueror*: Siege units move at speed 2
-- *Diplomat*: Treaties can't be broken for 5 turns
-- *Shadow King*: All your unit counts hidden from scouts
-
-Doctrines are public knowledge — they signal intent and create metagame.
+Each civ can build their unique unit once they reach Age II.
 
 ---
 
-## 3. Turn Structure
+## 3. Ages & Tech Tree
 
-### Simultaneous Resolution with Diplomacy Phase
+### Three Ages
 
-Each turn has three phases:
+| Age | Advance Cost | Unlocks |
+|-----|-------------|---------|
+| **Bronze** (start) | — | Basic units, basic buildings |
+| **Iron** (age up) | 10🍖 8⛏️ 5💰 | Cavalry, Archers, Fortress, Trade Post, Unique unit |
+| **Steel** (age up) | 15🍖 12⛏️ 10💰 | Siege, Knights, all techs |
+
+### Tech Branches (pick ONE per age)
+
+**Bronze Age techs** (pick 1):
+- **Agriculture**: +1 food from farms
+- **Mining**: +1 iron from mines
+- **Masonry**: Buildings complete instantly
+
+**Iron Age techs** (pick 1):
+- **Tactics**: All units +1 strength
+- **Commerce**: Markets produce +2 gold
+- **Fortification**: All provinces +1 defense
+
+**Steel Age techs** (pick 1):
+- **Blitz**: All units +1 speed
+- **Siege Craft**: Siege units +3 vs fortifications
+- **Diplomacy**: Treaties generate +2 gold/turn per active treaty
+
+Techs are **permanent and exclusive** — you can't get both, creating meaningful tradeoffs.
+
+---
+
+## 4. Units & Combat
+
+### Unit Triangle
 
 ```
-DIPLOMACY PHASE (flexible time, e.g., 30-60 seconds per agent API call)
-├── Agents send/receive natural language messages
-├── Propose/accept/reject formal treaties
-└── Trade offers
+  Infantry (⚔️)
+   /          \
+  beats      loses to
+ /              \
+Cavalry (🐴) ←beats← Archers (🏹)
+```
 
-ORDER PHASE (single API call per agent)
+| Unit | Cost | Str | Spd | Special | Age |
+|------|------|-----|-----|---------|-----|
+| **Militia** | 1🍖 | 1 | 1 | Free upkeep at home | Bronze |
+| **Infantry** | 1🍖 1⛏️ | 3 | 1 | +2 vs Cavalry | Bronze |
+| **Archers** | 1🍖 1💰 | 2 | 1 | +2 vs Infantry, forest +1 | Iron |
+| **Cavalry** | 2🍖 1⛏️ | 3 | 2 | +2 vs Archers, plains +1 | Iron |
+| **Siege** | 2⛏️ 2💰 | 1 | 1 | +5 vs Fortress | Steel |
+| **Knights** | 2🍖 2⛏️ 1💰 | 5 | 2 | No bonuses but raw power | Steel |
+| **Scout** | 1💰 | 0 | 3 | Reveals fog, can't fight | Bronze |
+
+### Combat Resolution
+
+1. Sum strength per side (including terrain & type bonuses)
+2. **Type bonuses**: Each unit checks triangle against each enemy unit type
+3. **Terrain bonuses**: Applied per-unit based on province terrain
+4. **Defender bonus**: Fortress defense + terrain defense
+5. **Winner**: Higher total strength (ties favor defender)
+6. **Casualties**: Loser loses all units. Winner loses `floor(loser_str / 4)` units (weakest first)
+7. **Veterancy**: Surviving units gain +1 str (max +2 veteran bonus)
+
+---
+
+## 5. Economy
+
+### Three Resources
+
+| Resource | Sources | Used For |
+|----------|---------|----------|
+| **Food** 🍖 | Plains, farms, coast | Units, age advancement, upkeep |
+| **Iron** ⛏️ | Mountains, mines, forest | Military, buildings, age advancement |
+| **Gold** 💰 | Trade, markets, coast | Tech, trade, age advancement |
+
+### Buildings
+
+| Building | Cost | Effect | Age |
+|----------|------|--------|-----|
+| **Farm** | 2🍖 | +2 food/turn | Bronze |
+| **Mine** | 2⛏️ | +2 iron/turn | Bronze |
+| **Market** | 3💰 | +2 gold/turn | Bronze |
+| **Barracks** | 2⛏️ | Units cost -1 food here | Bronze |
+| **Fortress** | 3⛏️ 2💰 | +3 defense | Iron |
+| **Trade Post** | 2💰 | Enables trade routes | Iron |
+| **Watchtower** | 1⛏️ 1💰 | See 2 provinces away | Iron |
+
+One building per province per turn. Buildings complete in 1 turn.
+
+### Trade Routes
+
+- Build Trade Posts in provinces to enable routes
+- A route between two of YOUR trade posts generates `distance × 1` gold/turn
+- Allied trade routes (your post ↔ ally's post): `distance × 2` gold/turn split evenly
+- **Caravans are implicit** — but routes passing through enemy territory can be **raided** (enemy with units in any province along shortest path steals 50% of route gold)
+- Trade routes visualized as dashed lines on the map
+
+---
+
+## 6. Turn Structure
+
+Simultaneous resolution with diplomacy:
+
+```
+DIPLOMACY PHASE
+├── Send/receive natural language messages
+├── Propose/accept treaties
+
+ORDER PHASE (single JSON submission)
 ├── Move units
 ├── Build units/buildings
-├── Assign resources
-└── Special actions (spy missions, etc.)
+├── Research tech / advance age
+├── Establish trade routes
 
-RESOLUTION PHASE (server-side, deterministic)
-├── All moves resolve simultaneously
-├── Conflicts in contested provinces → combat
+RESOLUTION PHASE (server-side)
+├── Moves resolve simultaneously
+├── Combat in contested provinces
 ├── Resource collection
-├── Building completion
-└── Victory condition check
+├── Building/tech completion
+├── Trade route income
+├── Victory check
 ```
-
-### Why Simultaneous?
-- Prevents first-mover advantage
-- Creates interesting mind-games (did they attack or defend?)
-- More interesting for spectators
-- Natural for LLMs — each agent gets one API call per phase
-
-### Time Limits
-- **Fast mode:** 10s diplomacy, 5s orders (for tournaments)
-- **Standard:** 30s diplomacy, 15s orders
-- **Async:** 5 min per phase (for different-timezone agents)
 
 ---
 
-## 4. Diplomacy System — THE KILLER FEATURE
+## 7. Win Conditions
 
-### Natural Language Channels
+1. **Domination**: Control 15+ provinces (of 24) for 2 consecutive turns
+2. **Economic**: Accumulate 100 gold while holding your capital
+3. **Last Standing**: All others eliminated
+4. **Score Victory**: After 40 turns, highest score wins
+   - Score = provinces×3 + units×1 + (gold/5) + techs×5 + age×10
 
-Each pair of players has a private diplomatic channel. Messages are free-form natural language.
+---
 
-```json
-{
-  "from": "agent_red",
-  "to": "agent_blue", 
-  "message": "I notice you're building up near Thornfield. I have no interest in that region — I'm focused on the coast. Want to agree on a border at the river?",
-  "turn": 5
-}
-```
+## 8. Token Budget
 
-Agents can also send messages to a **public channel** visible to all players (and spectators).
+### Player View (target: <1500 tokens)
 
-### Formal Treaties
-
-Beyond chat, agents can propose structured treaties:
+Using compact keys and abbreviations:
 
 ```json
 {
-  "type": "non_aggression_pact",
-  "parties": ["agent_red", "agent_blue"],
-  "terms": {
-    "duration": 5,
-    "provinces_covered": ["thornfield", "sunharbor"]
+  "t": 12,                          // turn
+  "p": "player_0",                  // player id
+  "c": "ironborn",                  // civ
+  "a": 2,                           // age (1=Bronze,2=Iron,3=Steel)
+  "r": [15, 8, 12],                 // resources [food, iron, gold]
+  "tc": ["agr", "tac"],             // techs researched (abbreviated)
+  "pv": {                           // provinces (visible)
+    "frostgate": {
+      "tr": "M",                    // terrain: P/F/M/C/R
+      "o": "p0",                    // owner (abbreviated)
+      "u": [3,0,2,0,0,0,1],        // units [mil,inf,arc,cav,sie,kni,sco]
+      "b": ["F","K"],               // buildings (abbreviated)
+      "adj": ["cp","th"]            // adjacent (abbreviated ids)
+    }
   },
-  "proposed_by": "agent_red"
+  "fog": ["dh","fr"],               // fogged province ids
+  "tr": [["fp","ir",3]],            // trade routes [from,to,income]
+  "dip": [{"f":"p1","m":"..."}]     // recent diplomacy
 }
 ```
 
-Treaty types:
-- **Non-Aggression Pact**: No attacks in specified provinces
-- **Trade Agreement**: Exchange X resource for Y per turn
-- **Alliance**: Share vision, coordinate attacks
-- **Tribute**: One party pays another for peace
-- **Border Agreement**: Mutually recognized territory
+**Estimated tokens**: ~800-1200 depending on province count visible. Well under 1500 target.
 
-**Treaties are mechanically enforced? No!** Treaties are *recorded* but not enforced by the game engine. Breaking a treaty has no mechanical penalty — but it's public information that you broke it. This means:
+Key optimizations:
+- Single-char terrain codes (P/F/M/C/R)
+- Unit counts as array instead of named objects (7 slots = 7 unit types)
+- Building abbreviations (F=Farm, M=Mine, K=Market, B=Barracks, X=Fortress, T=TradePost, W=Watchtower)
+- Player IDs abbreviated (p0, p1, p2, p3)
+- Province IDs abbreviated to 2-char codes
+- Resources as array [food, iron, gold] instead of object
+- Techs as 3-char abbreviations
 
-- Reputation matters across matches
-- Agents must judge trustworthiness
-- Betrayal is a valid strategy but has consequences
-- This mirrors real diplomacy perfectly
-
-### Diplomacy Scoring
-
-Post-game analysis tracks:
-- Treaties honored vs broken
-- Communication volume and sentiment
-- Alliance longevity
-- Betrayal timing (was it strategic or random?)
-
-This creates an ELO-like **trust rating** alongside win rating.
+### Full Spectator State: ~2000-3000 tokens (24 provinces × ~80 tokens + player data)
 
 ---
 
-## 5. Fog of War
+## 9. What Makes This Fun to Watch
 
-### What You See
+### Strategic Narrative
+- **Age race**: Who ages up first? What tech did they pick?
+- **Unit composition**: Rock-paper-scissors creates visible counterplay
+- **Map control**: Center provinces are high-value chokepoints
+- **Trade networks**: Alliances visible through trade routes
+- **Civ matchups**: Ironborn aggression vs Verdanti boom vs Tidecaller trade empire
 
-Each agent only sees:
-- Their own provinces (full info)
-- Adjacent provinces to their territory (terrain and owner only, not unit counts)
-- Provinces with their scouts/spies (full or partial info)
-- Information shared via alliances
-
-### State Representation
-
-The API sends each agent their **personal view** — not the global state:
-
-```json
-{
-  "visible_provinces": { ... },
-  "fog_provinces": ["crystalpeak", "darkhollow"],
-  "intel": [
-    {"source": "scout_3", "province": "thornfield", "units": 5, "turn_observed": 4}
-  ]
-}
-```
-
-Intel goes stale — what a scout saw 3 turns ago may not be current.
-
-### Why This Matters
-- Forces investment in intelligence (scouts, spies, alliances)
-- Creates information asymmetry — the core of interesting decisions
-- Diplomacy becomes partly about extracting information
-- "I'll share my intel on the east if you share yours on the west"
+### Visual Indicators
+- Adjacency lines between all connected provinces
+- Terrain-colored provinces (green=plains, dark green=forest, grey=mountain, blue=coast, cyan=river)
+- Unit type emojis on provinces
+- Building icons
+- Battle flash animations
+- Trade route dashed lines
+- Age/era indicators per player
+- Turn log with events
 
 ---
 
-## 6. Win Conditions
+## 10. Design Principles
 
-Multiple paths to victory make the game richer:
-
-1. **Domination**: Control 60%+ of all provinces for 3 consecutive turns
-2. **Economic**: Accumulate 100 gold (adjustable) while controlling your capital
-3. **Diplomatic**: Get majority of *surviving* players to vote for you as "leader" (requires Embassy in every owned province)
-4. **Last Standing**: All other players eliminated
-5. **Score Victory**: After 40 turns, highest score wins
-
-**Score = provinces×2 + total_units + gold/5 + treaties_honored×3 - treaties_broken×5**
-
-The scoring formula incentivizes diplomatic play even in military-focused games.
-
----
-
-## 7. Token Budget Analysis
-
-### Per-Agent Game State (what they receive each turn)
-
-| Component | Tokens (est.) |
-|-----------|--------------|
-| Owned provinces (detail) | ~300 (6 provinces × 50 tokens) |
-| Visible provinces (partial) | ~200 |
-| Fog list | ~50 |
-| Own units summary | ~100 |
-| Resources & income | ~50 |
-| Active treaties | ~150 |
-| Recent diplomacy messages (last 3 turns) | ~500 |
-| Intel reports | ~100 |
-| Available actions template | ~200 |
-| **Total per turn** | **~1,650 tokens** |
-
-### Full Global State (for spectators/server)
-
-| Map Size | Full State Tokens |
-|----------|------------------|
-| Duel (12 provinces) | ~2,000 |
-| Standard (25 provinces, 4 players) | ~5,000 |
-| Grand (40 provinces, 8 players) | ~10,000 |
-
-**Verdict: Easily fits in any modern LLM context window.** Even with system prompt + game rules (~2,000 tokens), a standard game uses under 4K tokens per agent per turn.
-
----
-
-## 8. Agent-Facing API
-
-### REST API
-
-```
-POST /game/{game_id}/diplomacy
-  Body: {messages: [{to, content}], proposals: [...], responses: [...]}
-
-POST /game/{game_id}/orders  
-  Body: {orders: [{type, unit_id, target, ...}]}
-
-GET  /game/{game_id}/state
-  Returns: personal view of game state
-
-GET  /game/{game_id}/history
-  Returns: past turns, chat logs, combat results
-```
-
-### Turn Flow (Agent Perspective)
-
-1. Receive webhook or poll: "Turn N, diplomacy phase"
-2. `GET /state` — receive your view
-3. `POST /diplomacy` — send messages, propose treaties
-4. Receive diplomacy responses
-5. `POST /orders` — submit moves
-6. Receive resolution: combat results, new state
-
-### Agent SDK (Python)
-
-```python
-from stratagem import Agent, Game
-
-class MyAgent(Agent):
-    def on_diplomacy(self, state, messages):
-        # Analyze state, craft diplomatic messages
-        return DiplomacyResponse(
-            messages=[Message(to="blue", content="Let's team up against red")],
-            proposals=[Treaty(type="alliance", target="blue", duration=5)]
-        )
-    
-    def on_orders(self, state):
-        # Decide moves
-        return Orders(
-            moves=[Move(unit="soldiers_1", to="thornfield")],
-            builds=[Build(unit="soldiers", province="homeland")],
-        )
-```
-
----
-
-## 9. Spectator System
-
-### Live Match View
-
-Spectators see the **full** game state (god mode). The spectator format includes:
-
-- Full map with all units (color-coded by player)
-- Diplomatic message log (with timestamps)
-- Treaty status board
-- Resource graphs over time
-- Combat replay for each engagement
-- "Tension meter" — algorithmic prediction of when conflict is likely
-
-### Spectator Formats
-
-1. **Web UI**: Real-time map visualization, chat log sidebar, resource graphs
-2. **JSON stream**: For custom visualizations, bots that commentate, etc.
-3. **Replay file**: Full game state at every turn, replayable
-
-### What Makes It Fun to Watch
-
-Inspired by competitive AOE2 casting:
-
-- **Build order analysis**: What did each agent prioritize early game?
-- **Timing attacks**: Did an agent rush or boom?
-- **Diplomatic drama**: Watch alliances form and shatter
-- **Fog of war toggle**: See what each player knows vs reality
-- **Post-game interviews**: Ask agents to explain their strategy (they're LLMs — they can articulate!)
-- **Elo rankings**: Track agents across tournaments
-- **Civ-style leader screens**: Each agent gets a persona/portrait
-
----
-
-## 10. What Makes This Fun
-
-### Strategic Depth (Lessons from AOE2)
-
-- **Build order optimization**: Early game resource allocation matters hugely
-- **Map control**: Controlling center provinces gives information + resources
-- **Timing attacks**: Rush strategies vs economic boom vs turtle+tech
-- **Adaptation**: No single dominant strategy — metagame evolves
-- **Civilization matchups → Doctrine matchups**: Expansionist vs Fortifier creates interesting dynamics
-
-### Unique to AI Agents
-
-- **Diplomacy at superhuman speed**: LLMs can negotiate complex deals instantly
-- **Perfect memory**: Agents remember every promise, every betrayal
-- **No tilt**: Agents don't rage-quit (probably)
-- **Emergent behavior**: Will agents develop deception? Bluffing? Complex alliances?
-- **Cross-model matchups**: GPT-4 vs Claude vs Gemini vs open-source
-
-### The Social Layer
-
-- Agents develop **reputations** across matches
-- Trust ratings create long-term metagame
-- Tournament brackets with elimination
-- League play with seasons
-- Spectator betting (virtual currency)
-
----
-
-## 11. Design Principles
-
-1. **LLM-first**: Every design decision asks "can an LLM parse this in <2K tokens?"
-2. **Depth from interaction, not complexity**: Simple rules, complex emergent behavior
-3. **Diplomacy is the game**: Combat is important but diplomacy is what makes this unique
-4. **Observable**: Every game should be interesting to watch
-5. **Iterable**: Start simple, add complexity based on what agents actually do
+1. **LLM-first**: Everything parseable in <1500 tokens per player view
+2. **Depth from interaction**: Simple rules, complex emergent behavior via unit triangle + terrain + techs + diplomacy
+3. **Every decision matters**: Civ pick → age timing → tech choice → unit comp → positioning
+4. **Cascade effects**: Early civ/tech choices shape entire game arc (like AOE2 build orders)
+5. **Observable**: Clear visual narrative of expansion, conflict, and trade
+6. **Balanced asymmetry**: Civs are different but none dominant; map is symmetric but terrain creates variation

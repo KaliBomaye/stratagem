@@ -6,240 +6,446 @@
 <title>Stratagem — Spectator View</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a1a; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
-#sidebar { width: 320px; background: #12122a; border-right: 1px solid #2a2a4a; display: flex; flex-direction: column; overflow-y: auto; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0a1a; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+
+/* Sidebar */
+#sidebar { width: 340px; background: #10102a; border-right: 1px solid #2a2a4a; display: flex; flex-direction: column; }
+#header { padding: 14px 16px; background: #0d0d22; border-bottom: 1px solid #2a2a4a; text-align: center; }
+#header h1 { font-size: 22px; color: #8af; letter-spacing: 3px; }
+#header .sub { font-size: 11px; color: #556; margin-top: 2px; }
+
+/* Setup */
+#setup { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid #1a1a3a; }
+#setup input { flex: 1; background: #1a1a3a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 5px 8px; border-radius: 4px; font-size: 12px; }
+#setup button { background: #2a5a2a; border: 1px solid #3a7a3a; color: #e0e0e0; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+
+/* Sections */
+.section-head { padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8af; background: #0e0e25; border-bottom: 1px solid #1a1a3a; }
+
+/* Player cards */
+#players { overflow-y: auto; max-height: 280px; }
+.pcard { padding: 8px 14px; border-bottom: 1px solid #151535; transition: background 0.2s; }
+.pcard:hover { background: #161640; }
+.pcard.dead { opacity: 0.35; }
+.pname { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.pdot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.pciv { font-size: 11px; color: #888; margin-left: auto; }
+.pstats { display: flex; gap: 10px; font-size: 11px; color: #999; margin-top: 3px; flex-wrap: wrap; }
+.pstats .age { color: #fc6; font-weight: 600; }
+.pstats .tech { color: #6cf; }
+
+/* Event log */
+#event-log { flex: 1; overflow-y: auto; padding: 6px 14px; font-size: 11px; }
+.evt { padding: 3px 0; border-bottom: 1px solid #111130; line-height: 1.4; }
+.evt-turn { color: #8af; font-weight: 600; margin-right: 6px; }
+
+/* Diplo */
+#diplo-section { max-height: 180px; overflow-y: auto; padding: 6px 14px; font-size: 11px; border-top: 1px solid #1a1a3a; }
+.dmsg { padding: 4px 6px; margin-bottom: 4px; background: #141438; border-radius: 4px; }
+.dfrom { font-weight: 600; }
+
+/* Main */
 #main { flex: 1; display: flex; flex-direction: column; }
-#map-container { flex: 1; position: relative; overflow: hidden; }
-svg { width: 100%; height: 100%; }
-#controls { height: 48px; background: #12122a; border-top: 1px solid #2a2a4a; display: flex; align-items: center; padding: 0 16px; gap: 12px; }
-#controls button { background: #2a2a5a; color: #e0e0e0; border: 1px solid #4a4a7a; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
-#controls button:hover { background: #3a3a6a; }
-#controls button.active { background: #5a5aaa; }
-#turn-display { font-size: 18px; font-weight: bold; color: #8af; min-width: 100px; }
-h2 { padding: 12px 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #8af; border-bottom: 1px solid #2a2a4a; }
-.player-card { padding: 10px 16px; border-bottom: 1px solid #1a1a3a; }
-.player-name { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.player-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.player-stats { font-size: 12px; color: #999; margin-top: 4px; }
-.player-stats span { margin-right: 12px; }
-.dead { opacity: 0.4; text-decoration: line-through; }
-#diplo-log { flex: 1; overflow-y: auto; padding: 8px 16px; font-size: 12px; }
-.diplo-msg { margin-bottom: 8px; padding: 6px 8px; background: #1a1a3a; border-radius: 4px; }
-.diplo-from { font-weight: bold; }
-.province-node { cursor: pointer; }
-.province-node:hover circle { stroke-width: 3; stroke: #fff; }
-.province-label { font-size: 10px; fill: #fff; text-anchor: middle; pointer-events: none; }
-.province-units { font-size: 9px; fill: #ff0; text-anchor: middle; pointer-events: none; }
-.edge-line { stroke: #333; stroke-width: 1; }
-#header { padding: 12px 16px; background: #0d0d20; border-bottom: 1px solid #2a2a4a; text-align: center; }
-#header h1 { font-size: 20px; color: #8af; letter-spacing: 2px; }
-#header .subtitle { font-size: 11px; color: #666; }
-#setup { display: flex; gap: 8px; align-items: center; padding: 0 16px; margin-bottom: 8px; }
-#setup input { background: #1a1a3a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 100%; }
-#setup button { background: #2a5a2a; border: 1px solid #3a7a3a; color: #e0e0e0; padding: 4px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
-.winner-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); padding: 24px 48px; border: 2px solid gold; border-radius: 12px; font-size: 28px; color: gold; text-align: center; z-index: 100; }
+#map-container { flex: 1; position: relative; overflow: hidden; background: #080818; }
+canvas { width: 100%; height: 100%; }
+
+/* Controls */
+#controls { height: 44px; background: #10102a; border-top: 1px solid #2a2a4a; display: flex; align-items: center; padding: 0 14px; gap: 8px; }
+#controls button { background: #2a2a5a; color: #e0e0e0; border: 1px solid #3a3a6a; padding: 4px 14px; cursor: pointer; border-radius: 4px; font-size: 13px; }
+#controls button:hover { background: #3a3a7a; }
+#turn-display { font-size: 16px; font-weight: 700; color: #8af; min-width: 90px; }
+#turn-slider { flex: 1; }
+
+/* Winner */
+.winner-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 20px 40px; border: 2px solid gold; border-radius: 10px; font-size: 26px; color: gold; text-align: center; z-index: 100; display: none; }
+.winner-banner .sub { font-size: 14px; color: #ccc; margin-top: 6px; }
+
+/* Tooltip */
+#tooltip { position: absolute; background: rgba(10,10,30,0.95); border: 1px solid #4a4a7a; border-radius: 6px; padding: 8px 12px; font-size: 11px; pointer-events: none; display: none; z-index: 50; max-width: 220px; line-height: 1.5; }
 </style>
 </head>
 <body>
 <div id="sidebar">
   <div id="header">
     <h1>⚔️ STRATAGEM</h1>
-    <div class="subtitle">AI Strategy Game</div>
+    <div class="sub">AI Agent Strategy Game v2</div>
   </div>
   <div id="setup">
-    <input id="server-url" placeholder="Server URL or replay JSON URL" value="http://localhost:8000">
+    <input id="server-url" placeholder="Server URL" value="http://localhost:8000">
     <button onclick="connectServer()">Connect</button>
   </div>
-  <h2>Players</h2>
+  <div class="section-head">Players</div>
   <div id="players"></div>
-  <h2>Diplomacy</h2>
-  <div id="diplo-log"></div>
+  <div class="section-head">Events</div>
+  <div id="event-log"></div>
+  <div class="section-head">Diplomacy</div>
+  <div id="diplo-section"></div>
 </div>
 <div id="main">
   <div id="map-container">
-    <svg id="map"></svg>
-    <div id="winner-banner" class="winner-banner" style="display:none"></div>
+    <canvas id="map"></canvas>
+    <div id="tooltip"></div>
+    <div class="winner-banner" id="winner-banner"></div>
   </div>
   <div id="controls">
     <span id="turn-display">Turn 0</span>
-    <button onclick="prevTurn()">◀ Prev</button>
-    <button onclick="nextTurn()">Next ▶</button>
+    <button onclick="prevTurn()">◀</button>
     <button onclick="togglePlay()" id="play-btn">▶ Play</button>
+    <button onclick="nextTurn()">▶</button>
     <button onclick="goToStart()">⏮</button>
     <button onclick="goToEnd()">⏭</button>
-    <span id="turn-slider-container" style="flex:1">
-      <input type="range" id="turn-slider" min="0" max="0" value="0" style="width:100%" oninput="goToTurn(this.value)">
-    </span>
+    <input type="range" id="turn-slider" min="0" max="0" value="0" oninput="goToTurn(+this.value)">
   </div>
 </div>
 
 <script>
-const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
-let replayData = null;
-let currentTurnIndex = 0;
-let playing = false;
-let playInterval = null;
+// ── Constants ────────────────────────────────────────────────────────────────
+const COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#ecf0f1'];
+const TERRAIN_COLORS = { P:'#4a7a3a', F:'#2d5a1e', M:'#6a6a7a', C:'#2a5a8a', R:'#3a7a9a' };
+const TERRAIN_NAMES = { P:'Plains', F:'Forest', M:'Mountain', C:'Coast', R:'River' };
+const UNIT_EMOJI = ['🗡','⚔️','🏹','🐴','💣','🛡','👁'];
+const UNIT_NAMES = ['Militia','Infantry','Archers','Cavalry','Siege','Knights','Scout'];
+const BLDG_NAMES = { F:'Farm', M:'Mine', K:'Market', B:'Barracks', X:'Fortress', T:'Trade Post', W:'Watchtower' };
+const BLDG_EMOJI = { F:'🌾', M:'⛏️', K:'💰', B:'🏋️', X:'🏰', T:'📦', W:'🔭' };
+const CIV_EMOJI = { ironborn:'⚒️', verdanti:'🌿', tidecallers:'🌊', ashwalkers:'🔥' };
+const AGE_NAMES = { 1:'Bronze', 2:'Iron', 3:'Steel' };
 
+let replay = null;
+let turnIdx = 0;
+let playing = false;
+let playTimer = null;
+let canvas, ctx;
+let battleFlash = {};  // province_id -> frames remaining
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  canvas = document.getElementById('map');
+  ctx = canvas.getContext('2d');
+  resize();
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('mousemove', onMouse);
+  canvas.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display = 'none'; });
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('server')) { document.getElementById('server-url').value = params.get('server'); connectServer(); }
+  else if (params.get('replay')) { document.getElementById('server-url').value = params.get('replay'); connectServer(); }
+});
+
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  if (replay) render();
+}
+
+// ── Data Loading ─────────────────────────────────────────────────────────────
 function connectServer() {
   const url = document.getElementById('server-url').value.trim();
-  // Try to fetch game list or replay
   if (url.endsWith('.json')) {
-    fetch(url).then(r => r.json()).then(loadReplay).catch(e => alert('Error: ' + e));
+    fetch(url).then(r=>r.json()).then(load).catch(e=>alert('Error: '+e));
   } else {
-    // Fetch game list, pick first game
-    fetch(url + '/games').then(r => r.json()).then(games => {
-      if (games.length === 0) { alert('No games on server'); return; }
-      const gid = games[0].game_id;
-      fetch(url + '/games/' + gid + '/replay').then(r => r.json()).then(loadReplay).catch(e => alert('Error: ' + e));
-    }).catch(e => alert('Error: ' + e));
+    fetch(url+'/games').then(r=>r.json()).then(games => {
+      if (!games.length) { alert('No games'); return; }
+      fetch(url+'/games/'+games[0].game_id+'/replay').then(r=>r.json()).then(load).catch(e=>alert(e));
+    }).catch(e=>alert(e));
   }
 }
 
-function loadReplay(data) {
-  replayData = data;
-  currentTurnIndex = 0;
-  const slider = document.getElementById('turn-slider');
-  slider.max = data.turns.length - 1;
-  slider.value = 0;
-  renderTurn();
+function load(data) {
+  replay = data;
+  turnIdx = 0;
+  document.getElementById('turn-slider').max = data.turns.length - 1;
+  render();
 }
 
-function renderTurn() {
-  if (!replayData) return;
-  const turn = replayData.turns[currentTurnIndex];
-  if (!turn) return;
-  
-  document.getElementById('turn-display').textContent = `Turn ${turn.turn}`;
-  document.getElementById('turn-slider').value = currentTurnIndex;
-  
-  // Players
-  const state = turn.state;
-  const playersDiv = document.getElementById('players');
-  playersDiv.innerHTML = '';
-  const playerIds = replayData.players || Object.keys(state.players);
-  playerIds.forEach((pid, i) => {
-    const p = state.players[pid];
-    const provCount = Object.values(state.provinces).filter(pr => pr.owner === pid).length;
-    const unitCount = Object.values(state.provinces).filter(pr => pr.owner === pid).reduce((s, pr) => s + (pr.units || 0), 0);
-    const card = document.createElement('div');
-    card.className = 'player-card' + (p.alive ? '' : ' dead');
-    card.innerHTML = `
-      <div class="player-name"><span class="player-dot" style="background:${PLAYER_COLORS[i]}"></span>${pid} ${p.alive ? '' : '💀'}</div>
-      <div class="player-stats">
-        <span>🏰 ${provCount}</span>
-        <span>⚔️ ${unitCount}</span>
-        <span>🍖 ${p.resources.food}</span>
-        <span>⛏️ ${p.resources.iron}</span>
-        <span>💰 ${p.resources.gold}</span>
-      </div>
-    `;
-    playersDiv.appendChild(card);
-  });
-  
-  // Diplomacy
-  const diploDiv = document.getElementById('diplo-log');
-  const diploMsgs = (replayData.diplomacy || []).filter(m => m.turn <= turn.turn);
-  diploDiv.innerHTML = diploMsgs.slice(-20).map(m => `
-    <div class="diplo-msg">
-      <span class="diplo-from" style="color:${PLAYER_COLORS[playerIds.indexOf(m.from)]}">${m.from}</span>
-      → ${m.to}: ${m.content}
-    </div>
-  `).join('');
-  diploDiv.scrollTop = diploDiv.scrollHeight;
-  
-  // Map
-  renderMap(state, playerIds);
-  
-  // Winner
-  const banner = document.getElementById('winner-banner');
-  if (turn.winner) {
-    banner.style.display = 'block';
-    const wi = playerIds.indexOf(turn.winner);
-    banner.innerHTML = `🏆 ${turn.winner} WINS!<br><span style="font-size:16px;color:#ccc">Turn ${turn.turn}</span>`;
-    banner.style.borderColor = PLAYER_COLORS[wi] || 'gold';
-  } else {
-    banner.style.display = 'none';
-  }
-}
-
-function renderMap(state, playerIds) {
-  const svg = document.getElementById('map');
-  const rect = svg.getBoundingClientRect();
-  const W = rect.width || 800;
-  const H = rect.height || 600;
-  
-  const provinces = Object.entries(state.provinces);
-  const n = provinces.length;
-  
-  // Layout: force-directed is complex, use circular + jitter from hash
-  const positions = {};
-  provinces.forEach(([pid, prov], i) => {
-    const angle = (i / n) * Math.PI * 2;
-    const r = Math.min(W, H) * 0.35;
-    const jx = ((hashStr(pid) % 100) - 50) * 0.8;
-    const jy = ((hashStr(pid + 'y') % 100) - 50) * 0.8;
-    positions[pid] = {
-      x: W/2 + Math.cos(angle) * r + jx,
-      y: H/2 + Math.sin(angle) * r + jy
-    };
-  });
-  
-  let html = '';
-  
-  // Edges (from turn_log adjacency data if available, otherwise skip)
-  // We don't have adjacency in spectator state, so we'll show ownership clusters
-  
-  // Nodes
-  provinces.forEach(([pid, prov]) => {
-    const pos = positions[pid];
-    const ownerIdx = playerIds.indexOf(prov.owner);
-    const color = prov.owner ? PLAYER_COLORS[ownerIdx] || '#666' : '#444';
-    const radius = 18 + (prov.units || 0) * 2;
-    const strength = prov.unit_strength || 0;
-    
-    html += `<g class="province-node" transform="translate(${pos.x},${pos.y})">
-      <circle r="${radius}" fill="${color}" opacity="0.7" stroke="${color}" stroke-width="1.5"/>
-      <text class="province-label" dy="-2">${prov.name || pid}</text>
-      ${prov.units > 0 ? `<text class="province-units" dy="10">⚔${prov.units} (${strength})</text>` : ''}
-    </g>`;
-  });
-  
-  svg.innerHTML = html;
-}
-
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-
-function prevTurn() { if (currentTurnIndex > 0) { currentTurnIndex--; renderTurn(); } }
-function nextTurn() { if (replayData && currentTurnIndex < replayData.turns.length - 1) { currentTurnIndex++; renderTurn(); } }
-function goToTurn(i) { currentTurnIndex = parseInt(i); renderTurn(); }
-function goToStart() { currentTurnIndex = 0; renderTurn(); }
-function goToEnd() { if (replayData) { currentTurnIndex = replayData.turns.length - 1; renderTurn(); } }
+// ── Playback ─────────────────────────────────────────────────────────────────
+function prevTurn() { if (turnIdx > 0) { turnIdx--; onTurnChange(); } }
+function nextTurn() { if (replay && turnIdx < replay.turns.length-1) { turnIdx++; onTurnChange(); } }
+function goToTurn(i) { turnIdx = i; onTurnChange(); }
+function goToStart() { turnIdx = 0; onTurnChange(); }
+function goToEnd() { if (replay) { turnIdx = replay.turns.length-1; onTurnChange(); } }
 function togglePlay() {
   playing = !playing;
-  document.getElementById('play-btn').textContent = playing ? '⏸ Pause' : '▶ Play';
-  if (playing) {
-    playInterval = setInterval(() => {
-      if (replayData && currentTurnIndex < replayData.turns.length - 1) { currentTurnIndex++; renderTurn(); }
-      else { togglePlay(); }
-    }, 800);
-  } else {
-    clearInterval(playInterval);
-  }
+  document.getElementById('play-btn').textContent = playing ? '⏸' : '▶ Play';
+  if (playing) playTimer = setInterval(() => {
+    if (replay && turnIdx < replay.turns.length-1) { turnIdx++; onTurnChange(); }
+    else togglePlay();
+  }, 1000);
+  else clearInterval(playTimer);
 }
 
-// Load from URL param if present
-const params = new URLSearchParams(location.search);
-if (params.get('replay')) {
-  document.getElementById('server-url').value = params.get('replay');
-  connectServer();
-} else if (params.get('server')) {
-  document.getElementById('server-url').value = params.get('server');
-  connectServer();
+function onTurnChange() {
+  // Check for battles this turn to flash
+  const t = replay.turns[turnIdx];
+  if (t && t.combats) {
+    t.combats.forEach(c => { battleFlash[c.p] = 20; });
+  }
+  render();
 }
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+function render() {
+  if (!replay) return;
+  const t = replay.turns[turnIdx];
+  if (!t) return;
+  const state = t.state;
+  const playerIds = replay.players || Object.keys(state.players);
+
+  document.getElementById('turn-display').textContent = `Turn ${t.turn}`;
+  document.getElementById('turn-slider').value = turnIdx;
+
+  renderPlayers(state, playerIds);
+  renderEvents(t, playerIds);
+  renderDiplo(t, playerIds);
+  renderMap(state, playerIds, t);
+  renderWinner(t, playerIds);
+}
+
+function renderPlayers(state, playerIds) {
+  const el = document.getElementById('players');
+  el.innerHTML = playerIds.map((pid, i) => {
+    const p = state.players[pid];
+    if (!p) return '';
+    const civ = p.civ || '?';
+    const age = AGE_NAMES[p.age] || '?';
+    const techs = (p.techs||[]).join(', ') || 'none';
+    return `<div class="pcard${p.alive?'':' dead'}">
+      <div class="pname"><span class="pdot" style="background:${COLORS[i]}"></span>
+        ${pid} ${p.alive?'':'💀'}
+        <span class="pciv">${CIV_EMOJI[civ]||''} ${civ}</span></div>
+      <div class="pstats">
+        <span class="age">${age} Age</span>
+        <span>🏰${p.provinces||0}</span> <span>⚔️${p.units||0}</span>
+        <span>🍖${p.resources[0]}</span> <span>⛏️${p.resources[1]}</span> <span>💰${p.resources[2]}</span>
+        <span class="tech">📜${techs}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderEvents(t, playerIds) {
+  const el = document.getElementById('event-log');
+  // Show events from this turn + previous few
+  let evts = [];
+  const start = Math.max(0, turnIdx - 3);
+  for (let i = start; i <= turnIdx; i++) {
+    const tt = replay.turns[i];
+    if (tt && tt.events) {
+      tt.events.forEach(e => evts.push({ turn: tt.turn, text: e }));
+    }
+  }
+  el.innerHTML = evts.slice(-30).map(e =>
+    `<div class="evt"><span class="evt-turn">T${e.turn}</span>${e.text}</div>`
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderDiplo(t, playerIds) {
+  const el = document.getElementById('diplo-section');
+  const msgs = (replay.diplomacy || []).filter(m => m.turn <= t.turn);
+  el.innerHTML = msgs.slice(-15).map(m => {
+    const ci = playerIds.indexOf(m.from);
+    return `<div class="dmsg"><span class="dfrom" style="color:${COLORS[ci]}">${m.from}</span> → ${m.to}: ${m.content}</div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderWinner(t, playerIds) {
+  const b = document.getElementById('winner-banner');
+  if (t.winner) {
+    b.style.display = 'block';
+    const ci = playerIds.indexOf(t.winner);
+    const p = t.state.players[t.winner];
+    b.innerHTML = `🏆 ${t.winner} WINS!<div class="sub">${CIV_EMOJI[p?.civ]||''} ${p?.civ||''} — Turn ${t.turn}</div>`;
+    b.style.borderColor = COLORS[ci] || 'gold';
+  } else b.style.display = 'none';
+}
+
+function renderMap(state, playerIds, turnData) {
+  const W = canvas.width / devicePixelRatio;
+  const H = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, W, H);
+
+  const provs = Object.entries(state.provinces);
+  // Coordinate mapping: province x,y is 0-1000, map to canvas with padding
+  const pad = 40;
+  const sx = (x) => pad + (x / 1000) * (W - pad*2);
+  const sy = (y) => pad + (y / 1000) * (H - pad*2);
+
+  // ── Draw adjacency edges ──
+  ctx.strokeStyle = '#1a1a3a';
+  ctx.lineWidth = 1.5;
+  const drawn = new Set();
+  provs.forEach(([pid, prov]) => {
+    const x1 = sx(prov.x), y1 = sy(prov.y);
+    (prov.adjacent || []).forEach(adj => {
+      const key = [pid, adj].sort().join('-');
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      const ap = state.provinces[adj];
+      if (!ap) return;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(sx(ap.x), sy(ap.y));
+      ctx.stroke();
+    });
+  });
+
+  // ── Draw trade routes ──
+  if (state.trade_routes) {
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#fc6';
+    ctx.lineWidth = 2;
+    state.trade_routes.forEach(tr => {
+      const fp = state.provinces[tr.from], tp = state.provinces[tr.to];
+      if (!fp || !tp) return;
+      ctx.beginPath();
+      ctx.moveTo(sx(fp.x), sy(fp.y));
+      ctx.lineTo(sx(tp.x), sy(tp.y));
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  // ── Draw provinces ──
+  provs.forEach(([pid, prov]) => {
+    const x = sx(prov.x), y = sy(prov.y);
+    const ownerIdx = playerIds.indexOf(prov.owner);
+    const ownerColor = prov.owner ? COLORS[ownerIdx] || '#444' : '#333';
+    const terrainColor = TERRAIN_COLORS[prov.terrain] || '#333';
+    const r = 22 + Math.min(prov.unit_count || 0, 10) * 1.5;
+
+    // Territory glow
+    if (prov.owner) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+      ctx.fillStyle = ownerColor + '20';
+      ctx.fill();
+    }
+
+    // Terrain circle
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = terrainColor;
+    ctx.fill();
+    ctx.strokeStyle = ownerColor;
+    ctx.lineWidth = prov.owner ? 3 : 1;
+    ctx.stroke();
+
+    // Battle flash
+    if (battleFlash[pid] > 0) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 4 + battleFlash[pid], 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,100,50,${battleFlash[pid]/20})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      battleFlash[pid]--;
+    }
+
+    // Province name
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(prov.name || pid, x, y - r - 4);
+
+    // Defense indicator
+    if (prov.defense > 0) {
+      ctx.fillStyle = '#aaa';
+      ctx.font = '8px system-ui';
+      ctx.fillText('🛡' + prov.defense, x + r + 2, y - 6);
+    }
+
+    // Buildings row (small emoji above province)
+    const bldgs = prov.buildings || [];
+    if (bldgs.length > 0) {
+      ctx.font = '9px system-ui';
+      const bstr = bldgs.map(b => BLDG_EMOJI[b] || b).join('');
+      ctx.fillStyle = '#ddd';
+      ctx.fillText(bstr, x, y - 5);
+    }
+
+    // Unit display
+    if (prov.units && prov.unit_count > 0) {
+      // Show unit breakdown for each owner
+      let yoff = 6;
+      Object.entries(prov.units).forEach(([uowner, counts]) => {
+        const ci = playerIds.indexOf(uowner);
+        let parts = [];
+        counts.forEach((c, i) => { if (c > 0) parts.push(UNIT_EMOJI[i] + c); });
+        if (parts.length > 0) {
+          ctx.fillStyle = COLORS[ci] || '#fff';
+          ctx.font = '9px system-ui';
+          ctx.fillText(parts.join(' '), x, y + yoff);
+          yoff += 11;
+        }
+      });
+    }
+
+    // Strength number
+    if (prov.strength > 0) {
+      ctx.fillStyle = '#ff8';
+      ctx.font = 'bold 11px system-ui';
+      ctx.fillText(prov.strength, x, y + r + 12);
+    }
+  });
+}
+
+// ── Tooltip on hover ─────────────────────────────────────────────────────────
+function onMouse(e) {
+  if (!replay) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const W = rect.width, H = rect.height;
+  const pad = 40;
+
+  const t = replay.turns[turnIdx];
+  if (!t) return;
+  const state = t.state;
+
+  let found = null;
+  for (const [pid, prov] of Object.entries(state.provinces)) {
+    const x = pad + (prov.x / 1000) * (W - pad*2);
+    const y = pad + (prov.y / 1000) * (H - pad*2);
+    const r = 22 + Math.min(prov.unit_count || 0, 10) * 1.5;
+    if (Math.hypot(mx-x, my-y) < r + 5) { found = { pid, prov, sx: e.clientX, sy: e.clientY }; break; }
+  }
+
+  const tip = document.getElementById('tooltip');
+  if (!found) { tip.style.display = 'none'; return; }
+
+  const p = found.prov;
+  const terrain = TERRAIN_NAMES[p.terrain] || p.terrain;
+  const bldgs = (p.buildings||[]).map(b => BLDG_NAMES[b]||b).join(', ') || 'none';
+  let unitLines = [];
+  if (p.units) {
+    for (const [owner, counts] of Object.entries(p.units)) {
+      let parts = [];
+      counts.forEach((c,i) => { if (c>0) parts.push(`${UNIT_NAMES[i]}:${c}`); });
+      if (parts.length) unitLines.push(`${owner}: ${parts.join(', ')}`);
+    }
+  }
+
+  tip.innerHTML = `<b>${p.name || found.pid}</b><br>
+    Terrain: ${terrain} | Defense: ${p.defense||0}<br>
+    Owner: ${p.owner || 'neutral'}<br>
+    Buildings: ${bldgs}<br>
+    ${unitLines.length ? 'Units:<br>' + unitLines.join('<br>') : 'No units'}
+    ${p.strength ? '<br>Total Strength: ' + p.strength : ''}`;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(found.sx + 10, window.innerWidth - 240) + 'px';
+  tip.style.top = (found.sy + 10) + 'px';
+}
+
+// ── Animation loop for battle flashes ────────────────────────────────────────
+function animLoop() {
+  let any = false;
+  for (const k in battleFlash) { if (battleFlash[k] > 0) any = true; }
+  if (any && replay) render();
+  requestAnimationFrame(animLoop);
+}
+animLoop();
 </script>
 </body>
 </html>
