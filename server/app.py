@@ -12,6 +12,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.game import Game
+from server.rankings import (
+    get_leaderboard, get_agent_profile, get_matches, get_match, record_match,
+)
 from src.types import (
     Orders, MoveOrder, BuildUnitOrder, BuildBuildingOrder,
     ResearchOrder, TradeRouteOrder, DiplomacyOrder,
@@ -187,6 +190,20 @@ def _process_turn(gi: GameInstance) -> dict:
     })
     gi.pending_orders.clear()
     _save_replay(gi)  # save after every turn so replays are always available
+
+    # Record match when game ends
+    if result.winner:
+        alive = [p for p in gi.game.players if gi.game.players[p].alive]
+        dead = [p for p in gi.game.players if not gi.game.players[p].alive]
+        placements = [result.winner] + [p for p in alive if p != result.winner] + dead
+        record_match(
+            players=list(gi.game.players.keys()),
+            placements=placements,
+            winner=result.winner,
+            turn_count=result.turn,
+            replay_file=f"{gi.id}.json",
+        )
+
     return {
         "status": "turn_processed", "turn": result.turn,
         "combats": len(result.combats), "eliminations": result.eliminations,
@@ -218,6 +235,30 @@ def get_replay(game_id: str):
 def list_games():
     return [{"game_id": gid, "turn": gi.game.turn, "winner": gi.game.winner,
              "players": len(gi.game.players)} for gid, gi in GAMES.items()]
+
+# ── Rankings & Match History ──────────────────────────────────────────────────
+
+@app.get("/rankings")
+def api_leaderboard(limit: int = 50):
+    return get_leaderboard(limit)
+
+@app.get("/rankings/{agent_id}")
+def api_agent_profile(agent_id: str):
+    profile = get_agent_profile(agent_id)
+    if not profile:
+        raise HTTPException(404, "Agent not found")
+    return profile
+
+@app.get("/matches")
+def api_matches(limit: int = 50, offset: int = 0):
+    return get_matches(limit, offset)
+
+@app.get("/matches/{match_id}")
+def api_match_detail(match_id: str):
+    match = get_match(match_id)
+    if not match:
+        raise HTTPException(404, "Match not found")
+    return match
 
 # Serve frontend
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
