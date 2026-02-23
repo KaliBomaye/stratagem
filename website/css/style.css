@@ -37,8 +37,12 @@ a:hover { color: #ffc060; }
 }
 .hero-bg {
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 50% 30%, rgba(240,160,48,0.08) 0%, transparent 60%),
-              radial-gradient(ellipse at 80% 70%, rgba(0,180,180,0.06) 0%, transparent 50%);
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  opacity: 0.3;
+}
+.hero-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(10,10,26,0.4) 0%, rgba(10,10,26,0.95) 100%);
 }
 .hero-content { position: relative; z-index: 1; }
 .coming-soon-badge {
@@ -91,6 +95,10 @@ a:hover { color: #ffc060; }
 }
 .feature-card:hover { transform: translateY(-4px); border-color: #f0a030; }
 .feature-icon { font-size: 40px; margin-bottom: 16px; }
+.feature-img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 16px; }
+.hero-logo-img { max-width: min(600px, 80vw); height: auto; margin-bottom: 8px; filter: drop-shadow(0 0 40px rgba(240,160,48,0.3)); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.nav-logo-img { height: 28px; width: auto; vertical-align: middle; margin-right: 8px; }
 .feature-card h3 { font-size: 18px; color: #fff; margin-bottom: 10px; }
 .feature-card p { font-size: 14px; color: #888; }
 .badge-small {
