@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stratagem — Spectator View</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a1a; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+#sidebar { width: 320px; background: #12122a; border-right: 1px solid #2a2a4a; display: flex; flex-direction: column; overflow-y: auto; }
+#main { flex: 1; display: flex; flex-direction: column; }
+#map-container { flex: 1; position: relative; overflow: hidden; }
+svg { width: 100%; height: 100%; }
+#controls { height: 48px; background: #12122a; border-top: 1px solid #2a2a4a; display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+#controls button { background: #2a2a5a; color: #e0e0e0; border: 1px solid #4a4a7a; padding: 6px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+#controls button:hover { background: #3a3a6a; }
+#controls button.active { background: #5a5aaa; }
+#turn-display { font-size: 18px; font-weight: bold; color: #8af; min-width: 100px; }
+h2 { padding: 12px 16px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #8af; border-bottom: 1px solid #2a2a4a; }
+.player-card { padding: 10px 16px; border-bottom: 1px solid #1a1a3a; }
+.player-name { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.player-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.player-stats { font-size: 12px; color: #999; margin-top: 4px; }
+.player-stats span { margin-right: 12px; }
+.dead { opacity: 0.4; text-decoration: line-through; }
+#diplo-log { flex: 1; overflow-y: auto; padding: 8px 16px; font-size: 12px; }
+.diplo-msg { margin-bottom: 8px; padding: 6px 8px; background: #1a1a3a; border-radius: 4px; }
+.diplo-from { font-weight: bold; }
+.province-node { cursor: pointer; }
+.province-node:hover circle { stroke-width: 3; stroke: #fff; }
+.province-label { font-size: 10px; fill: #fff; text-anchor: middle; pointer-events: none; }
+.province-units { font-size: 9px; fill: #ff0; text-anchor: middle; pointer-events: none; }
+.edge-line { stroke: #333; stroke-width: 1; }
+#header { padding: 12px 16px; background: #0d0d20; border-bottom: 1px solid #2a2a4a; text-align: center; }
+#header h1 { font-size: 20px; color: #8af; letter-spacing: 2px; }
+#header .subtitle { font-size: 11px; color: #666; }
+#setup { display: flex; gap: 8px; align-items: center; padding: 0 16px; margin-bottom: 8px; }
+#setup input { background: #1a1a3a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 100%; }
+#setup button { background: #2a5a2a; border: 1px solid #3a7a3a; color: #e0e0e0; padding: 4px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.winner-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); padding: 24px 48px; border: 2px solid gold; border-radius: 12px; font-size: 28px; color: gold; text-align: center; z-index: 100; }
+</style>
+</head>
+<body>
+<div id="sidebar">
+  <div id="header">
+    <h1>⚔️ STRATAGEM</h1>
+    <div class="subtitle">AI Strategy Game</div>
+  </div>
+  <div id="setup">
+    <input id="server-url" placeholder="Server URL or replay JSON URL" value="http://localhost:8000">
+    <button onclick="connectServer()">Connect</button>
+  </div>
+  <h2>Players</h2>
+  <div id="players"></div>
+  <h2>Diplomacy</h2>
+  <div id="diplo-log"></div>
+</div>
+<div id="main">
+  <div id="map-container">
+    <svg id="map"></svg>
+    <div id="winner-banner" class="winner-banner" style="display:none"></div>
+  </div>
+  <div id="controls">
+    <span id="turn-display">Turn 0</span>
+    <button onclick="prevTurn()">◀ Prev</button>
+    <button onclick="nextTurn()">Next ▶</button>
+    <button onclick="togglePlay()" id="play-btn">▶ Play</button>
+    <button onclick="goToStart()">⏮</button>
+    <button onclick="goToEnd()">⏭</button>
+    <span id="turn-slider-container" style="flex:1">
+      <input type="range" id="turn-slider" min="0" max="0" value="0" style="width:100%" oninput="goToTurn(this.value)">
+    </span>
+  </div>
+</div>
+
+<script>
+const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
+let replayData = null;
+let currentTurnIndex = 0;
+let playing = false;
+let playInterval = null;
+
+function connectServer() {
+  const url = document.getElementById('server-url').value.trim();
+  // Try to fetch game list or replay
+  if (url.endsWith('.json')) {
+    fetch(url).then(r => r.json()).then(loadReplay).catch(e => alert('Error: ' + e));
+  } else {
+    // Fetch game list, pick first game
+    fetch(url + '/games').then(r => r.json()).then(games => {
+      if (games.length === 0) { alert('No games on server'); return; }
+      const gid = games[0].game_id;
+      fetch(url + '/games/' + gid + '/replay').then(r => r.json()).then(loadReplay).catch(e => alert('Error: ' + e));
+    }).catch(e => alert('Error: ' + e));
+  }
+}
+
+function loadReplay(data) {
+  replayData = data;
+  currentTurnIndex = 0;
+  const slider = document.getElementById('turn-slider');
+  slider.max = data.turns.length - 1;
+  slider.value = 0;
+  renderTurn();
+}
+
+function renderTurn() {
+  if (!replayData) return;
+  const turn = replayData.turns[currentTurnIndex];
+  if (!turn) return;
+  
+  document.getElementById('turn-display').textContent = `Turn ${turn.turn}`;
+  document.getElementById('turn-slider').value = currentTurnIndex;
+  
+  // Players
+  const state = turn.state;
+  const playersDiv = document.getElementById('players');
+  playersDiv.innerHTML = '';
+  const playerIds = replayData.players || Object.keys(state.players);
+  playerIds.forEach((pid, i) => {
+    const p = state.players[pid];
+    const provCount = Object.values(state.provinces).filter(pr => pr.owner === pid).length;
+    const unitCount = Object.values(state.provinces).filter(pr => pr.owner === pid).reduce((s, pr) => s + (pr.units || 0), 0);
+    const card = document.createElement('div');
+    card.className = 'player-card' + (p.alive ? '' : ' dead');
+    card.innerHTML = `
+      <div class="player-name"><span class="player-dot" style="background:${PLAYER_COLORS[i]}"></span>${pid} ${p.alive ? '' : '💀'}</div>
+      <div class="player-stats">
+        <span>🏰 ${provCount}</span>
+        <span>⚔️ ${unitCount}</span>
+        <span>🍖 ${p.resources.food}</span>
+        <span>⛏️ ${p.resources.iron}</span>
+        <span>💰 ${p.resources.gold}</span>
+      </div>
+    `;
+    playersDiv.appendChild(card);
+  });
+  
+  // Diplomacy
+  const diploDiv = document.getElementById('diplo-log');
+  const diploMsgs = (replayData.diplomacy || []).filter(m => m.turn <= turn.turn);
+  diploDiv.innerHTML = diploMsgs.slice(-20).map(m => `
+    <div class="diplo-msg">
+      <span class="diplo-from" style="color:${PLAYER_COLORS[playerIds.indexOf(m.from)]}">${m.from}</span>
+      → ${m.to}: ${m.content}
+    </div>
+  `).join('');
+  diploDiv.scrollTop = diploDiv.scrollHeight;
+  
+  // Map
+  renderMap(state, playerIds);
+  
+  // Winner
+  const banner = document.getElementById('winner-banner');
+  if (turn.winner) {
+    banner.style.display = 'block';
+    const wi = playerIds.indexOf(turn.winner);
+    banner.innerHTML = `🏆 ${turn.winner} WINS!<br><span style="font-size:16px;color:#ccc">Turn ${turn.turn}</span>`;
+    banner.style.borderColor = PLAYER_COLORS[wi] || 'gold';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function renderMap(state, playerIds) {
+  const svg = document.getElementById('map');
+  const rect = svg.getBoundingClientRect();
+  const W = rect.width || 800;
+  const H = rect.height || 600;
+  
+  const provinces = Object.entries(state.provinces);
+  const n = provinces.length;
+  
+  // Layout: force-directed is complex, use circular + jitter from hash
+  const positions = {};
+  provinces.forEach(([pid, prov], i) => {
+    const angle = (i / n) * Math.PI * 2;
+    const r = Math.min(W, H) * 0.35;
+    const jx = ((hashStr(pid) % 100) - 50) * 0.8;
+    const jy = ((hashStr(pid + 'y') % 100) - 50) * 0.8;
+    positions[pid] = {
+      x: W/2 + Math.cos(angle) * r + jx,
+      y: H/2 + Math.sin(angle) * r + jy
+    };
+  });
+  
+  let html = '';
+  
+  // Edges (from turn_log adjacency data if available, otherwise skip)
+  // We don't have adjacency in spectator state, so we'll show ownership clusters
+  
+  // Nodes
+  provinces.forEach(([pid, prov]) => {
+    const pos = positions[pid];
+    const ownerIdx = playerIds.indexOf(prov.owner);
+    const color = prov.owner ? PLAYER_COLORS[ownerIdx] || '#666' : '#444';
+    const radius = 18 + (prov.units || 0) * 2;
+    const strength = prov.unit_strength || 0;
+    
+    html += `<g class="province-node" transform="translate(${pos.x},${pos.y})">
+      <circle r="${radius}" fill="${color}" opacity="0.7" stroke="${color}" stroke-width="1.5"/>
+      <text class="province-label" dy="-2">${prov.name || pid}</text>
+      ${prov.units > 0 ? `<text class="province-units" dy="10">⚔${prov.units} (${strength})</text>` : ''}
+    </g>`;
+  });
+  
+  svg.innerHTML = html;
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function prevTurn() { if (currentTurnIndex > 0) { currentTurnIndex--; renderTurn(); } }
+function nextTurn() { if (replayData && currentTurnIndex < replayData.turns.length - 1) { currentTurnIndex++; renderTurn(); } }
+function goToTurn(i) { currentTurnIndex = parseInt(i); renderTurn(); }
+function goToStart() { currentTurnIndex = 0; renderTurn(); }
+function goToEnd() { if (replayData) { currentTurnIndex = replayData.turns.length - 1; renderTurn(); } }
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('play-btn').textContent = playing ? '⏸ Pause' : '▶ Play';
+  if (playing) {
+    playInterval = setInterval(() => {
+      if (replayData && currentTurnIndex < replayData.turns.length - 1) { currentTurnIndex++; renderTurn(); }
+      else { togglePlay(); }
+    }, 800);
+  } else {
+    clearInterval(playInterval);
+  }
+}
+
+// Load from URL param if present
+const params = new URLSearchParams(location.search);
+if (params.get('replay')) {
+  document.getElementById('server-url').value = params.get('replay');
+  connectServer();
+} else if (params.get('server')) {
+  document.getElementById('server-url').value = params.get('server');
+  connectServer();
+}
+</script>
+</body>
+</html>
