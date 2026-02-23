@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.game import Game
 from src.types import (
     Orders, MoveOrder, BuildUnitOrder, BuildBuildingOrder,
-    ResearchOrder, TradeRouteOrder,
+    ResearchOrder, TradeRouteOrder, DiplomacyOrder,
 )
 
 app = FastAPI(title="Stratagem", version="2.0.0")
@@ -62,6 +62,7 @@ class SubmitOrdersRequest(BaseModel):
     build_buildings: list[dict] = []
     research: dict | None = None
     trade_routes: list[dict] = []
+    diplomacy: dict | None = None  # {messages, proposals, accept_treaties, reject_treaties, break_treaties}
 
 class DiplomacyMessage(BaseModel):
     to: str
@@ -95,20 +96,20 @@ def create_game(req: CreateGameRequest):
 def get_state(game_id: str, authorization: str = Header(...)):
     gi, pid = get_player(game_id, authorization)
     state = gi.game.get_player_view(pid)
-    state["diplo"] = [m for m in gi.diplo_log
-                      if m["turn"] == gi.game.turn and (m["to"] == pid or m["to"] == "public")]
     state["game_id"] = game_id
     state["winner"] = gi.game.winner
     return state
 
 @app.get("/games/{game_id}/spectator")
-def get_spectator_state(game_id: str):
+def get_spectator_state(game_id: str, mode: str = "live"):
     gi = GAMES.get(game_id)
     if not gi:
         raise HTTPException(404, "Game not found")
     state = gi.game.get_full_state()
     state["game_id"] = game_id
-    state["diplo_log"] = gi.diplo_log
+    # Live spectators only see public messages; replay mode sees all
+    public_only = (mode == "live")
+    state["diplo_log"] = gi.game.get_all_diplomacy(public_only=public_only)
     state["turn_log"] = gi.turn_log
     return state
 
@@ -144,6 +145,15 @@ def submit_orders(game_id: str, req: SubmitOrdersRequest, authorization: str = H
     for tr in req.trade_routes:
         orders.trade_routes.append(TradeRouteOrder(from_province=tr["from"], to_province=tr["to"]))
 
+    if req.diplomacy:
+        orders.diplomacy = DiplomacyOrder(
+            messages=req.diplomacy.get("messages", []),
+            proposals=req.diplomacy.get("proposals", []),
+            accept_treaties=req.diplomacy.get("accept_treaties", []),
+            reject_treaties=req.diplomacy.get("reject_treaties", []),
+            break_treaties=req.diplomacy.get("break_treaties", []),
+        )
+
     gi.pending_orders[pid] = orders
 
     alive = [p for p in gi.game.players if gi.game.players[p].alive]
@@ -176,8 +186,7 @@ def _process_turn(gi: GameInstance) -> dict:
         "state": gi.game.get_full_state(),
     })
     gi.pending_orders.clear()
-    if gi.game.winner:
-        _save_replay(gi)
+    _save_replay(gi)  # save after every turn so replays are always available
     return {
         "status": "turn_processed", "turn": result.turn,
         "combats": len(result.combats), "eliminations": result.eliminations,
@@ -186,7 +195,12 @@ def _process_turn(gi: GameInstance) -> dict:
 
 def _save_replay(gi: GameInstance):
     replay = {"game_id": gi.id, "players": list(gi.game.players.keys()),
-              "winner": gi.game.winner, "turns": gi.turn_log, "diplomacy": gi.diplo_log}
+              "civs": {pid: p.civ for pid, p in gi.game.players.items()},
+              "winner": gi.game.winner, "turns": gi.turn_log,
+              "diplomacy": gi.game.get_all_diplomacy(public_only=False),
+              "treaties": [{"id": t.id, "type": t.type.value, "parties": t.parties,
+                            "since": t.turn_created, "broken_by": t.broken_by}
+                           for t in gi.game.treaties]}
     (REPLAY_DIR / f"{gi.id}.json").write_text(json.dumps(replay))
 
 @app.get("/games/{game_id}/replay")

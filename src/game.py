@@ -6,6 +6,7 @@ from .types import (
     Province, Player, Unit, UnitType, Building, BuildingType, TechId,
     Orders, MoveOrder, BuildUnitOrder, BuildBuildingOrder, ResearchOrder,
     TradeRoute, TradeRouteOrder, CombatResult, TurnResult,
+    DiplomacyMessage, TreatyProposal, Treaty, TreatyType, DiplomacyOrder,
     UNIT_STATS, UNIT_ORDER, TERRAIN_DEFENSE, TERRAIN_SHORT,
     BUILDING_SHORT, BUILDING_STATS, TRIANGLE, TERRAIN_UNIT_BONUS,
     UNIQUE_UNITS, AGE_COST, TECH_COST, TECH_AGE, TECH_GROUPS,
@@ -19,11 +20,16 @@ class Game:
     provinces: dict[str, Province]
     players: dict[str, Player]
     trade_routes: list[TradeRoute] = field(default_factory=list)
+    messages: list[DiplomacyMessage] = field(default_factory=list)
+    treaties: list[Treaty] = field(default_factory=list)
+    proposals: list[TreatyProposal] = field(default_factory=list)
+    trust_penalties: dict[str, int] = field(default_factory=dict)  # pid -> broken treaty count
     turn: int = 0
     history: list[TurnResult] = field(default_factory=list)
     winner: str | None = None
     max_turns: int = 40
     _uid: int = 0  # unit id counter
+    _treaty_uid: int = 0
 
     def _next_uid(self, player_id: str, utype: str) -> str:
         self._uid += 1
@@ -446,12 +452,122 @@ class Game:
 
         return None
 
+    # ── Diplomacy ─────────────────────────────────────────────────────────
+
+    def process_diplomacy(self, all_orders: dict[str, Orders], events: list[str]):
+        for pid, orders in all_orders.items():
+            if not orders.diplomacy:
+                continue
+            d = orders.diplomacy
+
+            # Messages
+            for msg in d.messages:
+                to = msg.get("to", "public")
+                content = msg.get("content", "")
+                is_public = (to == "public")
+                self.messages.append(DiplomacyMessage(
+                    sender=pid, recipient=to, content=content,
+                    turn=self.turn, is_public=is_public,
+                ))
+                if is_public:
+                    events.append(f"💬 {pid} (public): {content[:60]}")
+
+            # Treaty proposals
+            for prop in d.proposals:
+                target = prop.get("target")
+                ttype = prop.get("type", "alliance")
+                if target not in self.players or target == pid:
+                    continue
+                self._treaty_uid += 1
+                tp = TreatyProposal(
+                    id=f"tp_{self._treaty_uid}",
+                    proposer=pid, target=target,
+                    treaty_type=TreatyType(ttype),
+                    turn_proposed=self.turn,
+                )
+                self.proposals.append(tp)
+                events.append(f"📜 {pid} proposed {ttype} to {target}")
+
+            # Accept proposals
+            for tp_id in d.accept_treaties:
+                for tp in self.proposals:
+                    if tp.id == tp_id and tp.target == pid and not tp.accepted and not tp.rejected:
+                        tp.accepted = True
+                        self._treaty_uid += 1
+                        treaty = Treaty(
+                            id=f"t_{self._treaty_uid}",
+                            type=tp.treaty_type,
+                            parties=[tp.proposer, tp.target],
+                            turn_created=self.turn,
+                        )
+                        self.treaties.append(treaty)
+                        events.append(f"🤝 {tp.proposer} & {pid}: {tp.treaty_type.value} formed!")
+
+            # Reject proposals
+            for tp_id in d.reject_treaties:
+                for tp in self.proposals:
+                    if tp.id == tp_id and tp.target == pid:
+                        tp.rejected = True
+
+            # Break treaties
+            for t_id in d.break_treaties:
+                for t in self.treaties:
+                    if t.id == t_id and pid in t.parties and t.active:
+                        t.broken_by = pid
+                        t.turn_broken = self.turn
+                        self.trust_penalties[pid] = self.trust_penalties.get(pid, 0) + 1
+                        events.append(f"💔 {pid} broke {t.type.value} with {[p for p in t.parties if p != pid][0]}!")
+
+    def get_diplomacy_for_player(self, pid: str) -> dict:
+        """Get diplomacy info visible to a player."""
+        msgs = [m for m in self.messages
+                if m.turn == self.turn and (m.is_public or m.recipient == pid or m.sender == pid)]
+        pending = [p for p in self.proposals if p.target == pid and not p.accepted and not p.rejected]
+        active_treaties = [t for t in self.treaties if pid in t.parties and t.active]
+        return {
+            "messages": [{"from": m.sender, "to": m.recipient, "content": m.content,
+                          "public": m.is_public} for m in msgs],
+            "pending_proposals": [{"id": p.id, "from": p.proposer, "type": p.treaty_type.value}
+                                  for p in pending],
+            "treaties": [{"id": t.id, "type": t.type.value, "with": [p for p in t.parties if p != pid][0],
+                          "since": t.turn_created} for t in active_treaties],
+            "trust": {pid2: self.trust_penalties.get(pid2, 0) for pid2 in self.players},
+        }
+
+    def get_all_diplomacy(self, up_to_turn: int | None = None, public_only: bool = False) -> list[dict]:
+        """Get all messages for spectator/replay."""
+        msgs = self.messages
+        if up_to_turn is not None:
+            msgs = [m for m in msgs if m.turn <= up_to_turn]
+        if public_only:
+            msgs = [m for m in msgs if m.is_public]
+        return [{"from": m.sender, "to": m.recipient, "content": m.content,
+                 "turn": m.turn, "public": m.is_public} for m in msgs]
+
+    # ── Unit list for agents ─────────────────────────────────────────────
+
+    def get_player_units_list(self, pid: str) -> list[dict]:
+        """Get detailed unit list with IDs for a player."""
+        units = []
+        for prov in self.provinces.values():
+            for u in prov.units:
+                if u.owner == pid:
+                    units.append({
+                        "id": u.id, "type": u.type.value,
+                        "province": prov.id, "strength": u.strength,
+                        "veteran": u.veteran,
+                    })
+        return units
+
     # ── Turn Processing ──────────────────────────────────────────────────
 
     def process_turn(self, all_orders: dict[str, Orders]) -> TurnResult:
         self.turn += 1
         events: list[str] = []
         result = TurnResult(turn=self.turn)
+
+        # 0. Diplomacy
+        self.process_diplomacy(all_orders, events)
 
         # 1. Research & age up (before builds so new age unlocks apply)
         self.process_research(all_orders, events)
@@ -538,6 +654,8 @@ class Game:
             "pv": pv,
             "fog": fog,
             "tr": routes,
+            "units": self.get_player_units_list(pid),
+            "diplo": self.get_diplomacy_for_player(pid),
         }
 
     def get_full_state(self) -> dict:
@@ -584,11 +702,17 @@ class Game:
                 "owner": tr.owner, "partner": tr.partner, "income": tr.income,
             })
 
+        active_treaties = [{"id": t.id, "type": t.type.value, "parties": t.parties,
+                            "since": t.turn_created, "broken_by": t.broken_by}
+                           for t in self.treaties]
+
         return {
             "turn": self.turn,
             "players": players,
             "provinces": provinces,
             "trade_routes": routes,
+            "treaties": active_treaties,
+            "trust": dict(self.trust_penalties),
             "winner": self.winner,
         }
 

@@ -318,6 +318,57 @@ class Orders:
     build_buildings: list[BuildBuildingOrder] = field(default_factory=list)
     research: Optional[ResearchOrder] = None
     trade_routes: list[TradeRouteOrder] = field(default_factory=list)
+    diplomacy: Optional[DiplomacyOrder] = None
+
+
+# ── Results ──────────────────────────────────────────────────────────────────
+
+# ── Diplomacy ────────────────────────────────────────────────────────────────
+
+class TreatyType(str, Enum):
+    ALLIANCE = "alliance"
+    TRADE = "trade"
+    NON_AGGRESSION = "nap"
+    CEASEFIRE = "ceasefire"
+
+@dataclass
+class DiplomacyMessage:
+    sender: str
+    recipient: str  # player_id or "public"
+    content: str
+    turn: int
+    is_public: bool = False
+
+@dataclass
+class TreatyProposal:
+    id: str
+    proposer: str
+    target: str
+    treaty_type: TreatyType
+    turn_proposed: int
+    accepted: bool = False
+    rejected: bool = False
+
+@dataclass
+class Treaty:
+    id: str
+    type: TreatyType
+    parties: list[str]  # 2 player_ids
+    turn_created: int
+    broken_by: Optional[str] = None
+    turn_broken: Optional[int] = None
+
+    @property
+    def active(self) -> bool:
+        return self.broken_by is None
+
+@dataclass
+class DiplomacyOrder:
+    messages: list[dict] = field(default_factory=list)  # [{to, content}]
+    proposals: list[dict] = field(default_factory=list)  # [{target, type}]
+    accept_treaties: list[str] = field(default_factory=list)  # treaty proposal ids
+    reject_treaties: list[str] = field(default_factory=list)
+    break_treaties: list[str] = field(default_factory=list)  # treaty ids to break
 
 
 # ── Results ──────────────────────────────────────────────────────────────────

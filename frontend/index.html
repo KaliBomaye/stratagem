@@ -15,12 +15,18 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 #header .sub { font-size: 11px; color: #556; margin-top: 2px; }
 
 /* Setup */
-#setup { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid #1a1a3a; }
-#setup input { flex: 1; background: #1a1a3a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 5px 8px; border-radius: 4px; font-size: 12px; }
+#setup { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid #1a1a3a; flex-wrap: wrap; }
+#setup input { flex: 1; background: #1a1a3a; border: 1px solid #3a3a5a; color: #e0e0e0; padding: 5px 8px; border-radius: 4px; font-size: 12px; min-width: 120px; }
 #setup button { background: #2a5a2a; border: 1px solid #3a7a3a; color: #e0e0e0; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+#setup button:hover { background: #3a7a3a; }
+#setup .or { color: #556; font-size: 11px; align-self: center; }
+#load-replay-btn { background: #4a3a6a; border-color: #6a5a8a; }
+#load-replay-btn:hover { background: #5a4a7a; }
+#mode-indicator { width: 100%; font-size: 10px; text-align: center; padding: 4px 0; color: #8af; }
 
 /* Sections */
-.section-head { padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8af; background: #0e0e25; border-bottom: 1px solid #1a1a3a; }
+.section-head { padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #8af; background: #0e0e25; border-bottom: 1px solid #1a1a3a; cursor: pointer; user-select: none; }
+.section-head:hover { background: #12123a; }
 
 /* Player cards */
 #players { overflow-y: auto; max-height: 280px; }
@@ -33,16 +39,28 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 .pstats { display: flex; gap: 10px; font-size: 11px; color: #999; margin-top: 3px; flex-wrap: wrap; }
 .pstats .age { color: #fc6; font-weight: 600; }
 .pstats .tech { color: #6cf; }
+.ptreaties { font-size: 10px; color: #6a8; margin-top: 2px; }
+.ptrust-penalty { color: #f66; font-size: 10px; }
 
 /* Event log */
-#event-log { flex: 1; overflow-y: auto; padding: 6px 14px; font-size: 11px; }
+#event-log { flex: 1; overflow-y: auto; padding: 6px 14px; font-size: 11px; min-height: 60px; }
 .evt { padding: 3px 0; border-bottom: 1px solid #111130; line-height: 1.4; }
 .evt-turn { color: #8af; font-weight: 600; margin-right: 6px; }
 
-/* Diplo */
-#diplo-section { max-height: 180px; overflow-y: auto; padding: 6px 14px; font-size: 11px; border-top: 1px solid #1a1a3a; }
+/* Diplo panel */
+#diplo-section { max-height: 250px; overflow-y: auto; border-top: 1px solid #1a1a3a; display: flex; flex-direction: column; }
+.diplo-tabs { display: flex; border-bottom: 1px solid #1a1a3a; }
+.diplo-tab { flex: 1; text-align: center; padding: 6px; font-size: 11px; cursor: pointer; color: #888; border-bottom: 2px solid transparent; }
+.diplo-tab.active { color: #8af; border-bottom-color: #8af; }
+.diplo-tab:hover { color: #aaf; }
+#diplo-content { flex: 1; overflow-y: auto; padding: 6px 14px; font-size: 11px; }
 .dmsg { padding: 4px 6px; margin-bottom: 4px; background: #141438; border-radius: 4px; }
+.dmsg.private { background: #281428; border-left: 2px solid #a66; }
+.dmsg.public { border-left: 2px solid #6a6; }
 .dfrom { font-weight: 600; }
+.dprivate-label { color: #f88; font-size: 9px; margin-left: 4px; }
+.treaty-item { padding: 4px 6px; margin-bottom: 3px; background: #142814; border-radius: 4px; border-left: 2px solid #6a6; }
+.treaty-broken { background: #281414; border-left-color: #a44; text-decoration: line-through; opacity: 0.6; }
 
 /* Main */
 #main { flex: 1; display: flex; flex-direction: column; }
@@ -55,16 +73,26 @@ canvas { width: 100%; height: 100%; }
 #controls button:hover { background: #3a3a7a; }
 #turn-display { font-size: 16px; font-weight: 700; color: #8af; min-width: 90px; }
 #turn-slider { flex: 1; }
+#speed-display { font-size: 11px; color: #888; min-width: 50px; text-align: right; }
 
 /* Winner */
-.winner-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.9); padding: 20px 40px; border: 2px solid gold; border-radius: 10px; font-size: 26px; color: gold; text-align: center; z-index: 100; display: none; }
-.winner-banner .sub { font-size: 14px; color: #ccc; margin-top: 6px; }
+.winner-banner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.92); padding: 24px 50px; border: 2px solid gold; border-radius: 12px; font-size: 28px; color: gold; text-align: center; z-index: 100; display: none; }
+.winner-banner .sub { font-size: 14px; color: #ccc; margin-top: 8px; }
 
 /* Tooltip */
-#tooltip { position: absolute; background: rgba(10,10,30,0.95); border: 1px solid #4a4a7a; border-radius: 6px; padding: 8px 12px; font-size: 11px; pointer-events: none; display: none; z-index: 50; max-width: 220px; line-height: 1.5; }
+#tooltip { position: absolute; background: rgba(10,10,30,0.95); border: 1px solid #4a4a7a; border-radius: 6px; padding: 8px 12px; font-size: 11px; pointer-events: none; display: none; z-index: 50; max-width: 240px; line-height: 1.5; }
+
+/* Drop zone */
+#drop-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(40,40,100,0.7); display: none; z-index: 200; justify-content: center; align-items: center; font-size: 24px; color: #8af; }
+
+/* Hidden file input */
+#file-input { display: none; }
 </style>
 </head>
 <body>
+<div id="drop-overlay">📂 Drop replay JSON file here</div>
+<input type="file" id="file-input" accept=".json">
+
 <div id="sidebar">
   <div id="header">
     <h1>⚔️ STRATAGEM</h1>
@@ -73,13 +101,24 @@ canvas { width: 100%; height: 100%; }
   <div id="setup">
     <input id="server-url" placeholder="Server URL" value="http://localhost:8000">
     <button onclick="connectServer()">Connect</button>
+    <span class="or">or</span>
+    <button id="load-replay-btn" onclick="document.getElementById('file-input').click()">📂 Load Replay</button>
+    <div id="mode-indicator"></div>
   </div>
-  <div class="section-head">Players</div>
+  <div class="section-head" onclick="toggleSection('players')">Players</div>
   <div id="players"></div>
-  <div class="section-head">Events</div>
+  <div class="section-head" onclick="toggleSection('event-log')">Events</div>
   <div id="event-log"></div>
   <div class="section-head">Diplomacy</div>
-  <div id="diplo-section"></div>
+  <div id="diplo-section">
+    <div class="diplo-tabs">
+      <div class="diplo-tab active" data-tab="all" onclick="switchDiploTab('all')">All</div>
+      <div class="diplo-tab" data-tab="public" onclick="switchDiploTab('public')">Public</div>
+      <div class="diplo-tab" data-tab="private" onclick="switchDiploTab('private')">Private</div>
+      <div class="diplo-tab" data-tab="treaties" onclick="switchDiploTab('treaties')">Treaties</div>
+    </div>
+    <div id="diplo-content"></div>
+  </div>
 </div>
 <div id="main">
   <div id="map-container">
@@ -95,6 +134,7 @@ canvas { width: 100%; height: 100%; }
     <button onclick="goToStart()">⏮</button>
     <button onclick="goToEnd()">⏭</button>
     <input type="range" id="turn-slider" min="0" max="0" value="0" oninput="goToTurn(+this.value)">
+    <span id="speed-display">1x</span>
   </div>
 </div>
 
@@ -114,8 +154,12 @@ let replay = null;
 let turnIdx = 0;
 let playing = false;
 let playTimer = null;
+let playSpeed = 1000;  // ms per turn
 let canvas, ctx;
-let battleFlash = {};  // province_id -> frames remaining
+let battleFlash = {};
+let viewMode = 'replay';  // 'replay' or 'live'
+let diploTab = 'all';
+let liveInterval = null;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
@@ -126,9 +170,33 @@ window.addEventListener('load', () => {
   canvas.addEventListener('mousemove', onMouse);
   canvas.addEventListener('mouseleave', () => { document.getElementById('tooltip').style.display = 'none'; });
 
+  // File input handler
+  document.getElementById('file-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) loadReplayFile(file);
+  });
+
+  // Drag and drop
+  document.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-overlay').style.display = 'flex'; });
+  document.getElementById('drop-overlay').addEventListener('dragleave', () => { document.getElementById('drop-overlay').style.display = 'none'; });
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    document.getElementById('drop-overlay').style.display = 'none';
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.json')) loadReplayFile(file);
+  });
+
+  // Speed control with keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') nextTurn();
+    else if (e.key === 'ArrowLeft') prevTurn();
+    else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    else if (e.key === '+' || e.key === '=') { playSpeed = Math.max(200, playSpeed - 200); updateSpeed(); }
+    else if (e.key === '-') { playSpeed = Math.min(3000, playSpeed + 200); updateSpeed(); }
+  });
+
   const params = new URLSearchParams(location.search);
   if (params.get('server')) { document.getElementById('server-url').value = params.get('server'); connectServer(); }
-  else if (params.get('replay')) { document.getElementById('server-url').value = params.get('replay'); connectServer(); }
 });
 
 function resize() {
@@ -139,24 +207,78 @@ function resize() {
   if (replay) render();
 }
 
+function updateSpeed() {
+  document.getElementById('speed-display').textContent = (1000/playSpeed).toFixed(1) + 'x';
+  if (playing) { clearInterval(playTimer); playTimer = setInterval(autoAdvance, playSpeed); }
+}
+
 // ── Data Loading ─────────────────────────────────────────────────────────────
+function loadReplayFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      viewMode = 'replay';
+      load(data);
+      document.getElementById('mode-indicator').textContent = `📼 Replay: ${file.name}`;
+    } catch(err) { alert('Invalid JSON: ' + err); }
+  };
+  reader.readAsText(file);
+}
+
 function connectServer() {
   const url = document.getElementById('server-url').value.trim();
   if (url.endsWith('.json')) {
-    fetch(url).then(r=>r.json()).then(load).catch(e=>alert('Error: '+e));
-  } else {
-    fetch(url+'/games').then(r=>r.json()).then(games => {
-      if (!games.length) { alert('No games'); return; }
-      fetch(url+'/games/'+games[0].game_id+'/replay').then(r=>r.json()).then(load).catch(e=>alert(e));
-    }).catch(e=>alert(e));
+    fetch(url).then(r=>r.json()).then(data => { viewMode = 'replay'; load(data); }).catch(e=>alert('Error: '+e));
+    return;
   }
+  viewMode = 'live';
+  document.getElementById('mode-indicator').textContent = '🔴 Live — connecting...';
+  fetch(url+'/games').then(r=>r.json()).then(games => {
+    if (!games.length) { alert('No games running'); return; }
+    const gid = games[games.length-1].game_id;
+    fetchLiveState(url, gid);
+    // Poll for updates
+    if (liveInterval) clearInterval(liveInterval);
+    liveInterval = setInterval(() => fetchLiveState(url, gid), 2000);
+  }).catch(e=>alert(e));
+}
+
+function fetchLiveState(url, gid) {
+  fetch(url+'/games/'+gid+'/spectator?mode=live').then(r=>r.json()).then(data => {
+    const replayData = {
+      game_id: data.game_id,
+      players: Object.keys(data.players),
+      winner: data.winner,
+      turns: data.turn_log || [],
+      diplomacy: data.diplo_log || [],
+      treaties: data.treaties || [],
+    };
+    const wasAtEnd = !replay || turnIdx >= (replay.turns.length - 1);
+    load(replayData);
+    if (wasAtEnd) { turnIdx = Math.max(0, replay.turns.length - 1); onTurnChange(); }
+    document.getElementById('mode-indicator').textContent = `🔴 Live: ${gid} (Turn ${data.turn})`;
+    if (data.winner) {
+      clearInterval(liveInterval);
+      document.getElementById('mode-indicator').textContent = `✅ Finished: ${gid}`;
+    }
+  }).catch(() => {});
 }
 
 function load(data) {
   replay = data;
+  if (!replay.turns || !replay.turns.length) {
+    alert('No turn data in replay');
+    return;
+  }
   turnIdx = 0;
-  document.getElementById('turn-slider').max = data.turns.length - 1;
+  document.getElementById('turn-slider').max = Math.max(0, data.turns.length - 1);
   render();
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 // ── Playback ─────────────────────────────────────────────────────────────────
@@ -165,23 +287,30 @@ function nextTurn() { if (replay && turnIdx < replay.turns.length-1) { turnIdx++
 function goToTurn(i) { turnIdx = i; onTurnChange(); }
 function goToStart() { turnIdx = 0; onTurnChange(); }
 function goToEnd() { if (replay) { turnIdx = replay.turns.length-1; onTurnChange(); } }
+function autoAdvance() {
+  if (replay && turnIdx < replay.turns.length-1) { turnIdx++; onTurnChange(); }
+  else togglePlay();
+}
 function togglePlay() {
   playing = !playing;
   document.getElementById('play-btn').textContent = playing ? '⏸' : '▶ Play';
-  if (playing) playTimer = setInterval(() => {
-    if (replay && turnIdx < replay.turns.length-1) { turnIdx++; onTurnChange(); }
-    else togglePlay();
-  }, 1000);
+  if (playing) playTimer = setInterval(autoAdvance, playSpeed);
   else clearInterval(playTimer);
 }
 
 function onTurnChange() {
-  // Check for battles this turn to flash
   const t = replay.turns[turnIdx];
   if (t && t.combats) {
     t.combats.forEach(c => { battleFlash[c.p] = 20; });
   }
   render();
+}
+
+// ── Diplomacy Tab ────────────────────────────────────────────────────────────
+function switchDiploTab(tab) {
+  diploTab = tab;
+  document.querySelectorAll('.diplo-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  if (replay) render();
 }
 
 // ── Rendering ────────────────────────────────────────────────────────────────
@@ -204,12 +333,25 @@ function render() {
 
 function renderPlayers(state, playerIds) {
   const el = document.getElementById('players');
+  const treaties = state.treaties || replay.treaties || [];
+  const trust = state.trust || {};
+
   el.innerHTML = playerIds.map((pid, i) => {
     const p = state.players[pid];
     if (!p) return '';
     const civ = p.civ || '?';
     const age = AGE_NAMES[p.age] || '?';
     const techs = (p.techs||[]).join(', ') || 'none';
+
+    // Active treaties for this player
+    const playerTreaties = treaties.filter(t => t.parties && t.parties.includes(pid) && !t.broken_by);
+    const treatyStr = playerTreaties.map(t => {
+      const other = t.parties.find(p2 => p2 !== pid);
+      return `${t.type} w/ ${other}`;
+    }).join(', ');
+
+    const penalty = trust[pid] || 0;
+
     return `<div class="pcard${p.alive?'':' dead'}">
       <div class="pname"><span class="pdot" style="background:${COLORS[i]}"></span>
         ${pid} ${p.alive?'':'💀'}
@@ -220,13 +362,14 @@ function renderPlayers(state, playerIds) {
         <span>🍖${p.resources[0]}</span> <span>⛏️${p.resources[1]}</span> <span>💰${p.resources[2]}</span>
         <span class="tech">📜${techs}</span>
       </div>
+      ${treatyStr ? `<div class="ptreaties">🤝 ${treatyStr}</div>` : ''}
+      ${penalty > 0 ? `<div class="ptrust-penalty">⚠️ Broken ${penalty} treaty(s)</div>` : ''}
     </div>`;
   }).join('');
 }
 
 function renderEvents(t, playerIds) {
   const el = document.getElementById('event-log');
-  // Show events from this turn + previous few
   let evts = [];
   const start = Math.max(0, turnIdx - 3);
   for (let i = start; i <= turnIdx; i++) {
@@ -242,12 +385,40 @@ function renderEvents(t, playerIds) {
 }
 
 function renderDiplo(t, playerIds) {
-  const el = document.getElementById('diplo-section');
-  const msgs = (replay.diplomacy || []).filter(m => m.turn <= t.turn);
-  el.innerHTML = msgs.slice(-15).map(m => {
+  const el = document.getElementById('diplo-content');
+  const isReplay = viewMode === 'replay';
+  const allMsgs = replay.diplomacy || [];
+  const msgsUpToTurn = allMsgs.filter(m => m.turn <= t.turn);
+
+  if (diploTab === 'treaties') {
+    const treaties = (replay.turns[turnIdx]?.state?.treaties) || replay.treaties || [];
+    el.innerHTML = treaties.map(tr => {
+      const broken = tr.broken_by;
+      return `<div class="treaty-item ${broken ? 'treaty-broken' : ''}">
+        ${tr.type}: ${tr.parties.join(' & ')} (T${tr.since})${broken ? ` — broken by ${broken}` : ''}
+      </div>`;
+    }).join('') || '<div style="padding:8px;color:#666">No treaties yet</div>';
+    return;
+  }
+
+  let filtered = msgsUpToTurn;
+  if (diploTab === 'public') filtered = filtered.filter(m => m.public);
+  else if (diploTab === 'private') filtered = filtered.filter(m => !m.public);
+
+  // In live mode, hide private messages
+  if (!isReplay && viewMode === 'live') {
+    filtered = filtered.filter(m => m.public);
+  }
+
+  el.innerHTML = filtered.slice(-25).map(m => {
     const ci = playerIds.indexOf(m.from);
-    return `<div class="dmsg"><span class="dfrom" style="color:${COLORS[ci]}">${m.from}</span> → ${m.to}: ${m.content}</div>`;
-  }).join('');
+    const isPrivate = !m.public;
+    const privateLabel = isPrivate ? `<span class="dprivate-label">[PRIVATE to ${m.to}]</span>` : '';
+    return `<div class="dmsg ${isPrivate ? 'private' : 'public'}">
+      <span style="color:#888;font-size:9px">T${m.turn}</span>
+      <span class="dfrom" style="color:${COLORS[ci]}">${m.from}</span>${privateLabel}: ${m.content}
+    </div>`;
+  }).join('') || '<div style="padding:8px;color:#666">No messages yet</div>';
   el.scrollTop = el.scrollHeight;
 }
 
@@ -268,12 +439,11 @@ function renderMap(state, playerIds, turnData) {
   ctx.clearRect(0, 0, W, H);
 
   const provs = Object.entries(state.provinces);
-  // Coordinate mapping: province x,y is 0-1000, map to canvas with padding
   const pad = 40;
   const sx = (x) => pad + (x / 1000) * (W - pad*2);
   const sy = (y) => pad + (y / 1000) * (H - pad*2);
 
-  // ── Draw adjacency edges ──
+  // Draw adjacency edges
   ctx.strokeStyle = '#1a1a3a';
   ctx.lineWidth = 1.5;
   const drawn = new Set();
@@ -292,7 +462,7 @@ function renderMap(state, playerIds, turnData) {
     });
   });
 
-  // ── Draw trade routes ──
+  // Draw trade routes
   if (state.trade_routes) {
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = '#fc6';
@@ -308,7 +478,7 @@ function renderMap(state, playerIds, turnData) {
     ctx.setLineDash([]);
   }
 
-  // ── Draw provinces ──
+  // Draw provinces
   provs.forEach(([pid, prov]) => {
     const x = sx(prov.x), y = sy(prov.y);
     const ownerIdx = playerIds.indexOf(prov.owner);
@@ -356,7 +526,7 @@ function renderMap(state, playerIds, turnData) {
       ctx.fillText('🛡' + prov.defense, x + r + 2, y - 6);
     }
 
-    // Buildings row (small emoji above province)
+    // Buildings
     const bldgs = prov.buildings || [];
     if (bldgs.length > 0) {
       ctx.font = '9px system-ui';
@@ -365,9 +535,8 @@ function renderMap(state, playerIds, turnData) {
       ctx.fillText(bstr, x, y - 5);
     }
 
-    // Unit display
+    // Units
     if (prov.units && prov.unit_count > 0) {
-      // Show unit breakdown for each owner
       let yoff = 6;
       Object.entries(prov.units).forEach(([uowner, counts]) => {
         const ci = playerIds.indexOf(uowner);
@@ -382,7 +551,7 @@ function renderMap(state, playerIds, turnData) {
       });
     }
 
-    // Strength number
+    // Strength
     if (prov.strength > 0) {
       ctx.fillStyle = '#ff8';
       ctx.font = 'bold 11px system-ui';
@@ -391,7 +560,7 @@ function renderMap(state, playerIds, turnData) {
   });
 }
 
-// ── Tooltip on hover ─────────────────────────────────────────────────────────
+// ── Tooltip ──────────────────────────────────────────────────────────────────
 function onMouse(e) {
   if (!replay) return;
   const rect = canvas.getBoundingClientRect();
@@ -434,11 +603,11 @@ function onMouse(e) {
     ${unitLines.length ? 'Units:<br>' + unitLines.join('<br>') : 'No units'}
     ${p.strength ? '<br>Total Strength: ' + p.strength : ''}`;
   tip.style.display = 'block';
-  tip.style.left = Math.min(found.sx + 10, window.innerWidth - 240) + 'px';
+  tip.style.left = Math.min(found.sx + 10, window.innerWidth - 260) + 'px';
   tip.style.top = (found.sy + 10) + 'px';
 }
 
-// ── Animation loop for battle flashes ────────────────────────────────────────
+// ── Animation loop ───────────────────────────────────────────────────────────
 function animLoop() {
   let any = false;
   for (const k in battleFlash) { if (battleFlash[k] > 0) any = true; }

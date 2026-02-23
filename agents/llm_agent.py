@@ -1,113 +1,218 @@
-"""LLM-powered Stratagem agent using Claude Sonnet."""
+"""LLM-powered Stratagem agent using Claude via OpenClaw gateway or Anthropic API."""
 from __future__ import annotations
-import json, sys, time, re
+import json, sys, time, re, os
 import httpx
 
-SYSTEM_PROMPT = """You are an AI playing Stratagem, a competitive strategy game. You control provinces, units, and resources.
+SYSTEM_PROMPT = """You are an expert AI playing Stratagem, a 4-player strategy game on a 24-province map.
 
-RULES:
-- Each turn you submit orders: move units, build units, build buildings
-- Unit types: militia (str 1, cost 1 food), soldiers (str 3, cost 1 food + 1 iron), knights (str 5, cost 1 food + 2 iron + 1 gold), siege (str 2, cost 2 iron + 2 gold), scout (str 0, cost 1 gold)
-- Building types: farm (+2 food), mine (+2 iron), market (+1 gold), fortress (+3 defense), barracks (-1 iron on units), watchtower (reveals adjacent), embassy (diplomacy)
-- Combat: total strength + terrain bonus (mountains +2, forest +1). Defender gets terrain bonus.
-- Win conditions: domination (60% provinces for 3 turns), last standing, or highest score at turn 40
-- Score = provinces×2 + units + gold/5
+## GAME RULES
+- **Resources**: food🍖, iron⛏️, gold💰. Collected from owned provinces each turn.
+- **Ages**: Bronze(1) → Iron(2) → Steel(3). Age up costs resources, unlocks units/buildings/techs.
+- **Units** (cost: food,iron,gold | str | speed | min_age):
+  militia(1,0,0|1|1|1) infantry(1,1,0|3|1|1) archers(1,0,1|2|1|2) cavalry(2,1,0|3|2|2)
+  siege(0,2,2|1|1|3) knights(2,2,1|5|2|3) scout(0,0,1|0|3|1)
+- **Combat triangle**: Infantry+2 vs Cavalry, Cavalry+2 vs Archers, Archers+2 vs Infantry
+- **Terrain bonuses**: Cavalry+1 on Plains, Archers+1 in Forest. Mountains+3 defense. River+1 defense, attackers-1.
+- **Buildings** (cost: food,iron,gold | min_age):
+  farm(2,0,0|1)+2food mine(0,2,0|1)+2iron market(0,0,3|1)+2gold barracks(0,2,0|1)-1food on units
+  fortress(0,3,2|2)+3def trade_post(0,0,2|2) watchtower(0,1,1|2)reveals2away
+- **Techs** (pick ONE per age): Bronze: agr/min/mas | Iron: tac/com/for | Steel: bli/sie/dip
+- **Win**: 15+ provinces for 2 turns, OR 100 gold, OR last standing, OR highest score at turn 40
 
-STRATEGY TIPS:
-- Control more provinces = more resources = more units
-- Build soldiers early for expansion
-- Defend key provinces with fortresses
-- Balance expansion with economy
+## DIPLOMACY
+You can send public messages (all see) or private messages (only recipient sees).
+You can propose treaties: alliance, trade, nap (non-aggression), ceasefire.
+Be strategic with diplomacy — ally against the leader, betray when advantageous.
 
-You MUST respond with ONLY a valid JSON object (no markdown, no explanation):
+## YOUR RESPONSE FORMAT (strict JSON, no markdown wrapping):
 {
-  "moves": [{"unit_id": "...", "target_province": "..."}],
-  "build_units": [{"unit_type": "soldiers", "province": "..."}],
-  "build_buildings": [{"building_type": "farm", "province": "..."}],
-  "diplomacy": [{"to": "player_X", "content": "..."}]
+  "reasoning": "brief strategic thought (1-2 sentences)",
+  "moves": [{"unit_id": "...", "target": "province_id"}],
+  "build_units": [{"type": "infantry", "province": "province_id"}],
+  "build_buildings": [{"type": "farm", "province": "province_id"}],
+  "research": {"tech": "agr"} or {"tech": "age_up"} or null,
+  "trade_routes": [],
+  "diplomacy": {
+    "messages": [{"to": "public", "content": "..."}, {"to": "p1", "content": "..."}],
+    "proposals": [{"target": "p1", "type": "alliance"}],
+    "accept_treaties": [],
+    "reject_treaties": [],
+    "break_treaties": []
+  }
 }
+
+IMPORTANT:
+- Use exact province IDs and unit IDs from the state
+- Only move units you own to adjacent provinces
+- Only build in provinces you own
+- Check you can afford things (resources shown)
+- Expand aggressively early, build economy, then military
+- ALWAYS include the diplomacy field
 """
 
-def format_state(state: dict) -> str:
-    """Format game state as a concise prompt."""
-    lines = [f"Turn {state['turn']} | You are {state['player']}"]
-    lines.append(f"Resources: food={state['resources'].get('food',0)}, iron={state['resources'].get('iron',0)}, gold={state['resources'].get('gold',0)}")
-    
-    lines.append("\nYOUR PROVINCES:")
-    for pid, prov in state["provinces"].items():
-        if prov.get("owner") == state["player"] and "units" in prov:
-            units_str = ", ".join(f"{u['type']}({u['id']})" for u in prov.get("units", []))
-            prod = prov.get("production", {})
-            lines.append(f"  {prov['name']} ({pid}) [{prov['terrain']}] units=[{units_str}] prod={prod} adj={prov.get('adjacent',[])}") 
-    
-    lines.append("\nVISIBLE ENEMY/NEUTRAL:")
-    for pid, prov in state["provinces"].items():
-        if prov.get("owner") != state["player"]:
-            owner = prov.get("owner", "neutral")
-            lines.append(f"  {prov['name']} ({pid}) [{prov['terrain']}] owner={owner} adj={prov.get('adjacent',[])}") 
-    
-    lines.append(f"\nFog: {len(state.get('fog', []))} hidden provinces")
-    
-    if state.get("pending_diplomacy"):
-        lines.append("\nDIPLOMATIC MESSAGES:")
-        for m in state["pending_diplomacy"]:
-            lines.append(f"  From {m['from']}: {m['content']}")
-    
+
+def format_state_for_llm(state: dict) -> str:
+    """Format compact game state into readable LLM prompt."""
+    pid = state["p"]
+    lines = [
+        f"=== TURN {state['t']} | You are {pid} | Civ: {state['c']} | Age: {state['a']} ===",
+        f"Resources: food={state['r'][0]} iron={state['r'][1]} gold={state['r'][2]}",
+        f"Techs: {state.get('tc', []) or 'none'}",
+    ]
+
+    # Units list
+    units = state.get("units", [])
+    if units:
+        lines.append(f"\nYOUR UNITS ({len(units)}):")
+        by_prov = {}
+        for u in units:
+            by_prov.setdefault(u["province"], []).append(u)
+        for prov_id, us in by_prov.items():
+            ustr = ", ".join(f"{u['type']}({u['id']},str={u['strength']})" for u in us)
+            lines.append(f"  {prov_id}: {ustr}")
+
+    # Provinces
+    lines.append("\nPROVINCES (visible):")
+    pv = state.get("pv", {})
+    for prov_id, p in pv.items():
+        owner = p.get("o", "-")
+        terrain = p.get("tr", "?")
+        adj = p.get("adj", [])
+        parts = [f"{prov_id} [{terrain}] owner={owner} adj={adj}"]
+        if "b" in p:
+            parts.append(f"buildings={p['b']}")
+        if "pr" in p:
+            parts.append(f"prod={p['pr']}")
+        if "u" in p:
+            parts.append(f"units={p['u']}")
+        if "uc" in p:
+            parts.append(f"enemy_units={p['uc']}")
+        lines.append("  " + " ".join(parts))
+
+    lines.append(f"\nFogged provinces: {state.get('fog', [])}")
+
+    # Diplomacy
+    diplo = state.get("diplo", {})
+    if diplo.get("messages"):
+        lines.append("\nMESSAGES THIS TURN:")
+        for m in diplo["messages"]:
+            tag = "PUBLIC" if m.get("public") else f"PRIVATE from {m['from']}"
+            lines.append(f"  [{tag}] {m['from']}: {m['content']}")
+    if diplo.get("pending_proposals"):
+        lines.append("\nPENDING TREATY PROPOSALS (you can accept/reject):")
+        for p in diplo["pending_proposals"]:
+            lines.append(f"  {p['id']}: {p['from']} proposes {p['type']}")
+    if diplo.get("treaties"):
+        lines.append("\nACTIVE TREATIES:")
+        for t in diplo["treaties"]:
+            lines.append(f"  {t['id']}: {t['type']} with {t['with']} (since T{t['since']})")
+    trust = diplo.get("trust", {})
+    breakers = {k: v for k, v in trust.items() if v > 0}
+    if breakers:
+        lines.append(f"\nTRUST PENALTIES (broken treaties): {breakers}")
+
     return "\n".join(lines)
 
 
-def get_llm_orders(state: dict, llm_url: str = "http://localhost:18789", model: str = "anthropic/claude-sonnet-4-6") -> dict:
-    """Call LLM to get orders."""
-    prompt = format_state(state)
-    
-    resp = httpx.post(
-        f"{llm_url}/v1/chat/completions",
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": 1024,
-            "temperature": 0.3,
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
-    content = resp.json()["choices"][0]["message"]["content"]
-    
-    # Parse JSON from response (handle markdown wrapping)
-    content = content.strip()
-    if content.startswith("```"):
-        content = re.sub(r"^```(?:json)?\n?", "", content)
-        content = re.sub(r"\n?```$", "", content)
-    
-    return json.loads(content)
+def call_llm(prompt: str, llm_url: str, model: str, retries: int = 2) -> dict:
+    """Call LLM and parse JSON response. Supports OpenAI-compat endpoint or Gemini."""
+    for attempt in range(retries + 1):
+        try:
+            content = None
+            gemini_key = os.environ.get("GEMINI_API_KEY")
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+            if anthropic_key:
+                # Use Anthropic native API
+                resp = httpx.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                    json={"model": model.replace("anthropic/", ""), "max_tokens": 1500, "temperature": 0.4,
+                          "system": SYSTEM_PROMPT,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=90,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["content"][0]["text"]
+                usage = data.get("usage", {})
+                print(f"    [LLM/Anthropic] tokens: in={usage.get('input_tokens','?')} out={usage.get('output_tokens','?')}")
+
+            elif gemini_key:
+                # Use Gemini API
+                gem_model = "gemini-2.5-flash"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{gem_model}:generateContent?key={gemini_key}"
+                resp = httpx.post(url, json={
+                    "contents": [{"parts": [{"text": SYSTEM_PROMPT + "\n\n" + prompt}]}],
+                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2048,
+                                        "responseMimeType": "application/json"},
+                }, timeout=90)
+                resp.raise_for_status()
+                data = resp.json()
+                content = data["candidates"][0]["content"]["parts"][0]["text"]
+                usage = data.get("usageMetadata", {})
+                print(f"    [LLM/Gemini] tokens: in={usage.get('promptTokenCount','?')} out={usage.get('candidatesTokenCount','?')}")
+
+            else:
+                # Try OpenAI-compatible endpoint
+                resp = httpx.post(
+                    f"{llm_url}/v1/chat/completions",
+                    json={"model": model, "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ], "max_tokens": 1500, "temperature": 0.4},
+                    timeout=90,
+                )
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+
+            # Parse JSON
+            content = content.strip()
+            if content.startswith("```"):
+                content = re.sub(r"^```(?:json)?\n?", "", content)
+                content = re.sub(r"\n?```$", "", content)
+
+            parsed = json.loads(content)
+            reasoning = parsed.pop("reasoning", "")
+            if reasoning:
+                print(f"    [LLM] reasoning: {reasoning}")
+            return parsed
+
+        except Exception as e:
+            print(f"    [LLM] attempt {attempt+1} failed: {e}")
+            if attempt == retries:
+                return None
+            time.sleep(2)
+    return None
 
 
-def play_turn(base_url: str, game_id: str, api_key: str, llm_url: str, model: str) -> dict:
+def play_turn(base_url: str, game_id: str, api_key: str, llm_url: str, model: str,
+              pid: str = "?") -> dict:
+    """Play a single turn."""
     headers = {"Authorization": f"Bearer {api_key}"}
-    
+
     resp = httpx.get(f"{base_url}/games/{game_id}/state", headers=headers)
     if resp.status_code != 200:
         return {"error": resp.text}
     state = resp.json()
-    
     if state.get("winner"):
         return {"done": True, "winner": state["winner"]}
-    
-    try:
-        orders = get_llm_orders(state, llm_url, model)
-    except Exception as e:
-        print(f"  LLM error: {e}, submitting empty orders")
+
+    prompt = format_state_for_llm(state)
+    orders = call_llm(prompt, llm_url, model)
+
+    if not orders:
+        print(f"    [{pid}] LLM failed, submitting empty orders")
         orders = {"moves": [], "build_units": [], "build_buildings": []}
-    
-    # Submit diplomacy first
-    diplo = orders.pop("diplomacy", [])
-    if diplo:
-        httpx.post(f"{base_url}/games/{game_id}/diplomacy", headers=headers, json={"messages": diplo})
-    
-    # Submit orders
+
+    # Ensure all fields exist
+    orders.setdefault("moves", [])
+    orders.setdefault("build_units", [])
+    orders.setdefault("build_buildings", [])
+    orders.setdefault("research", None)
+    orders.setdefault("trade_routes", [])
+    orders.setdefault("diplomacy", None)
+
     resp = httpx.post(f"{base_url}/games/{game_id}/orders", headers=headers, json=orders)
     return resp.json()
 
@@ -118,11 +223,11 @@ def main():
     api_key = sys.argv[3] if len(sys.argv) > 3 else None
     llm_url = sys.argv[4] if len(sys.argv) > 4 else "http://localhost:18789"
     model = sys.argv[5] if len(sys.argv) > 5 else "anthropic/claude-sonnet-4-6"
-    
+
     if not game_id or not api_key:
         print("Usage: llm_agent.py <base_url> <game_id> <api_key> [llm_url] [model]")
         sys.exit(1)
-    
+
     print(f"LLM Agent starting: game={game_id}, model={model}")
     while True:
         result = play_turn(base_url, game_id, api_key, llm_url, model)
