@@ -9,7 +9,7 @@ from .types import (
     DiplomacyMessage, TreatyProposal, Treaty, TreatyType, DiplomacyOrder,
     UNIT_STATS, UNIT_ORDER, TERRAIN_DEFENSE, TERRAIN_SHORT,
     BUILDING_SHORT, BUILDING_STATS, TRIANGLE, TERRAIN_UNIT_BONUS,
-    UNIQUE_UNITS, AGE_COST, TECH_COST, TECH_AGE, TECH_GROUPS,
+    CIV_UNIQUE_UNIT, AGE_COST, TECH_COST, TECH_AGE, TECH_GROUPS,
 )
 from .map_gen import generate_map, CIVS, PLAYER_STARTS
 from .tech import can_research
@@ -67,10 +67,15 @@ class Game:
                 # Verdanti bonus: +1 food from all provinces
                 if player.civ == "verdanti":
                     f += 1
-                # Ashwalker sage unique units: +1 all resources per sage
+                # Unique unit bonuses in this province
                 for u in prov.units:
-                    if u.owner == pid and u.type == UnitType.SCOUT:
-                        pass  # scouts don't produce
+                    if u.owner == pid:
+                        if u.type == UnitType.SAGE:
+                            # Ashwalker sage: +1 all resources per sage
+                            f += 1; i += 1; g += 1
+                        elif u.type == UnitType.HERBALIST:
+                            # Verdanti herbalist: +2 food per herbalist
+                            f += 2
                 inc[0] += f; inc[1] += i; inc[2] += g
 
             # Upkeep: 1 food per non-militia, non-scout unit
@@ -252,11 +257,12 @@ class Game:
             if u.owner == winner and u.veteran < 2:
                 u.veteran += 1
 
-        # Corsair gold capture (Tidecallers unique)
-        winner_player = self.players[winner]
-        if winner_player.civ == "tidecallers":
+        # Corsair gold capture: 2 gold per kill if corsairs participated
+        winner_corsairs = sum(1 for u in prov.units if u.owner == winner and u.type == UnitType.CORSAIR)
+        if winner_corsairs > 0:
             total_killed = sum(v for k, v in losses.items() if k != winner)
-            winner_player.resources[2] += total_killed  # 1 gold per kill
+            gold_gain = total_killed * 2
+            self.players[winner].resources[2] += gold_gain
 
         prov.owner = winner
         events.append(f"⚔️ Battle at {prov.name}: {winner} wins (str {strengths[winner]:.0f} vs {', '.join(f'{p}:{s:.0f}' for p,s in strengths.items() if p!=winner)})")
@@ -281,24 +287,21 @@ class Game:
                     continue
 
                 if build.unit_type == "unique":
-                    # Unique unit
-                    if player.civ not in UNIQUE_UNITS:
+                    # Unique unit — resolve to civ-specific type
+                    if player.civ not in CIV_UNIQUE_UNIT:
                         continue
-                    uname, ucost, ustr, uspd, min_age = UNIQUE_UNITS[player.civ]
-                    if player.age < min_age:
+                    utype = CIV_UNIQUE_UNIT[player.civ]
+                    stats = UNIT_STATS[utype]
+                    if player.age < stats[3]:
                         continue
-                    cost = player.civ_unit_discount(ucost)
+                    cost = player.civ_unit_discount(stats[0])
                     if not player.can_afford(cost):
                         continue
                     player.pay(cost)
-                    # Use MILITIA type as placeholder but store in a way we can identify
-                    # Actually, let's use INFANTRY for unique units for simplicity in combat
-                    uid = self._next_uid(pid, uname)
-                    # Create as infantry type but with custom strength via veteran hack
-                    u = Unit(id=uid, type=UnitType.INFANTRY, owner=pid, province=prov.id,
-                             veteran=max(0, ustr - UNIT_STATS[UnitType.INFANTRY][1]))
+                    uid = self._next_uid(pid, utype.value)
+                    u = Unit(id=uid, type=utype, owner=pid, province=prov.id)
                     prov.units.append(u)
-                    events.append(f"🏗️ {pid} built {uname} at {prov.name}")
+                    events.append(f"🏗️ {pid} built {utype.value} at {prov.name}")
                     continue
 
                 try:

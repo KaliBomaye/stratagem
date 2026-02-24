@@ -41,10 +41,16 @@ class UnitType(str, Enum):
     SIEGE = "siege"
     KNIGHTS = "knights"
     SCOUT = "scout"
+    # Unique civ units
+    HUSCARL = "huscarl"        # Ironborn — heavy infantry, high str
+    HERBALIST = "herbalist"    # Verdanti — healer, boosts province food
+    CORSAIR = "corsair"        # Tidecallers — fast raider, earns gold on kills
+    SAGE = "sage"              # Ashwalkers — generates resources each turn
 
 # Order matters for compact array representation
 UNIT_ORDER = [UnitType.MILITIA, UnitType.INFANTRY, UnitType.ARCHERS,
-              UnitType.CAVALRY, UnitType.SIEGE, UnitType.KNIGHTS, UnitType.SCOUT]
+              UnitType.CAVALRY, UnitType.SIEGE, UnitType.KNIGHTS, UnitType.SCOUT,
+              UnitType.HUSCARL, UnitType.HERBALIST, UnitType.CORSAIR, UnitType.SAGE]
 
 # cost (food, iron, gold), base_strength, speed, min_age
 UNIT_STATS: dict[UnitType, tuple[tuple[int,int,int], int, int, int]] = {
@@ -55,6 +61,11 @@ UNIT_STATS: dict[UnitType, tuple[tuple[int,int,int], int, int, int]] = {
     UnitType.SIEGE:     ((0,2,2), 1, 1, 3),
     UnitType.KNIGHTS:   ((2,2,1), 5, 2, 3),
     UnitType.SCOUT:     ((0,0,1), 0, 3, 1),
+    # Unique units
+    UnitType.HUSCARL:   ((1,2,0), 6, 1, 2),   # Ironborn: tanky infantry
+    UnitType.HERBALIST: ((2,0,1), 1, 1, 2),   # Verdanti: weak but +2 food/turn in province
+    UnitType.CORSAIR:   ((1,1,1), 3, 2, 2),   # Tidecallers: fast, gold on kills
+    UnitType.SAGE:      ((1,0,2), 1, 1, 2),   # Ashwalkers: +1 all resources/turn
 }
 
 # Triangle bonuses: attacker type -> defender type -> bonus
@@ -70,12 +81,12 @@ TERRAIN_UNIT_BONUS = {
     UnitType.ARCHERS: {Terrain.FOREST: 1},
 }
 
-# Unique units per civ (same format as UNIT_STATS entry)
-UNIQUE_UNITS = {
-    "ironborn":    ("huscarl",    (1,2,0), 6, 1, 2),  # name, cost, str, spd, min_age
-    "verdanti":    ("herbalist",  (2,0,1), 1, 1, 2),
-    "tidecallers": ("corsair",    (1,1,1), 3, 2, 2),
-    "ashwalkers":  ("sage",       (1,0,2), 1, 1, 2),
+# Civ -> unique UnitType mapping
+CIV_UNIQUE_UNIT: dict[str, UnitType] = {
+    "ironborn":    UnitType.HUSCARL,
+    "verdanti":    UnitType.HERBALIST,
+    "tidecallers": UnitType.CORSAIR,
+    "ashwalkers":  UnitType.SAGE,
 }
 
 

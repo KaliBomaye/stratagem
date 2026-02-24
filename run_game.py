@@ -8,6 +8,7 @@ from src.game import Game
 from src.types import (
     Orders, MoveOrder, BuildUnitOrder, BuildBuildingOrder,
     ResearchOrder, UnitType, BuildingType, AGE_COST, UNIT_STATS,
+    CIV_UNIQUE_UNIT,
 )
 from src.tech import available_techs
 
@@ -47,16 +48,27 @@ def random_orders(game: Game, pid: str, rng: random.Random) -> Orders:
 
     # Build units
     if owned:
-        # Try to build the best unit we can afford
-        for utype in [UnitType.KNIGHTS, UnitType.CAVALRY, UnitType.INFANTRY, UnitType.ARCHERS, UnitType.MILITIA]:
+        # 30% chance to build unique unit if available
+        if rng.random() < 0.3 and player.civ in CIV_UNIQUE_UNIT:
+            utype = CIV_UNIQUE_UNIT[player.civ]
             stats = UNIT_STATS[utype]
-            if player.age < stats[3]:
-                continue
-            cost = player.civ_unit_discount(stats[0])
-            if player.can_afford(cost):
-                prov = rng.choice(owned)
-                orders.build_units.append(BuildUnitOrder(unit_type=utype.value, province=prov.id))
-                break
+            if player.age >= stats[3]:
+                cost = player.civ_unit_discount(stats[0])
+                if player.can_afford(cost):
+                    prov = rng.choice(owned)
+                    orders.build_units.append(BuildUnitOrder(unit_type="unique", province=prov.id))
+
+        if not orders.build_units:
+            # Try to build the best generic unit we can afford
+            for utype in [UnitType.KNIGHTS, UnitType.CAVALRY, UnitType.INFANTRY, UnitType.ARCHERS, UnitType.MILITIA]:
+                stats = UNIT_STATS[utype]
+                if player.age < stats[3]:
+                    continue
+                cost = player.civ_unit_discount(stats[0])
+                if player.can_afford(cost):
+                    prov = rng.choice(owned)
+                    orders.build_units.append(BuildUnitOrder(unit_type=utype.value, province=prov.id))
+                    break
 
     # Build buildings occasionally
     if owned and rng.random() < 0.3:
