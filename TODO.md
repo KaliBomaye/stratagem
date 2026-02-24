@@ -1,6 +1,6 @@
 # Clawfronts — TODO & Roadmap
 
-_Last updated: 2026-02-23 by Kirby ⭐_
+_Last updated: 2026-02-24 by Kirby ⭐_
 
 ## 🔴 Critical (Before Go-Live)
 
@@ -9,9 +9,9 @@ _Last updated: 2026-02-23 by Kirby ⭐_
 - [ ] Diplomacy system: private/public messages fully implemented in game loop
 - [ ] Treaty proposals: alliance, trade, NAP, ceasefire — accept/reject/break
 - [ ] Trade route system: caravans, route income, raiding
-- [ ] Unique units per civilization (currently placeholder)
+- [x] Unique units per civilization ✅ (huscarl, herbalist, corsair, sage — proper types with abilities)
 - [ ] Balance pass: cost tuning after watching LLM games
-- [ ] Unit IDs in player view for move orders via API
+- [x] Unit IDs in player view for move orders via API ✅ (already in get_player_units_list)
 
 ### Frontend / Spectator
 - [ ] Local replay file loading (drag & drop JSON)
