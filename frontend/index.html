@@ -143,7 +143,7 @@ canvas { width: 100%; height: 100%; }
 const COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#ecf0f1'];
 const TERRAIN_COLORS = { P:'#4a7a3a', F:'#2d5a1e', M:'#6a6a7a', C:'#2a5a8a', R:'#3a7a9a' };
 const TERRAIN_NAMES = { P:'Plains', F:'Forest', M:'Mountain', C:'Coast', R:'River' };
-const UNIT_EMOJI = ['🗡','⚔️','🏹','🐴','💣','🛡','👁'];
+const UNIT_EMOJI = ['🗡','⚔️','🏹','🐴','💣','🛡','👁','🪓','🌿','🏴‍☠️','📖'];
 const UNIT_NAMES = ['Militia','Infantry','Archers','Cavalry','Siege','Knights','Scout','Huscarl','Herbalist','Corsair','Sage'];
 const BLDG_NAMES = { F:'Farm', M:'Mine', K:'Market', B:'Barracks', X:'Fortress', T:'Trade Post', W:'Watchtower' };
 const BLDG_EMOJI = { F:'🌾', M:'⛏️', K:'💰', B:'🏋️', X:'🏰', T:'📦', W:'🔭' };
@@ -360,6 +360,7 @@ function renderPlayers(state, playerIds) {
         <span class="age">${age} Age</span>
         <span>🏰${p.provinces||0}</span> <span>⚔️${p.units||0}</span>
         <span>🍖${p.resources[0]}</span> <span>⛏️${p.resources[1]}</span> <span>💰${p.resources[2]}</span>
+        ${p.income ? `<span style="color:#5a5">(+${p.income[0]}/+${p.income[1]}/+${p.income[2]})</span>` : ''}
         <span class="tech">📜${techs}</span>
       </div>
       ${treatyStr ? `<div class="ptreaties">🤝 ${treatyStr}</div>` : ''}
@@ -596,9 +597,11 @@ function onMouse(e) {
     }
   }
 
+  const incomeStr = p.income ? `🍖${p.income[0]} ⛏️${p.income[1]} 💰${p.income[2]}` : '—';
   tip.innerHTML = `<b>${p.name || found.pid}</b><br>
     Terrain: ${terrain} | Defense: ${p.defense||0}<br>
     Owner: ${p.owner || 'neutral'}<br>
+    Income: ${incomeStr}<br>
     Buildings: ${bldgs}<br>
     ${unitLines.length ? 'Units:<br>' + unitLines.join('<br>') : 'No units'}
     ${p.strength ? '<br>Total Strength: ' + p.strength : ''}`;

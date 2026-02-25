@@ -672,6 +672,21 @@ class Game:
                 idx = UNIT_ORDER.index(u.type) if u.type in UNIT_ORDER else 0
                 units_by_owner[u.owner][idx] += 1
 
+            # Calculate production for this province
+            prod = None
+            if prov.owner and prov.owner in self.players:
+                owner_player = self.players[prov.owner]
+                f, i, g = prov.production(owner_player.techs)
+                if owner_player.civ == "verdanti":
+                    f += 1
+                for u in prov.units:
+                    if u.owner == prov.owner:
+                        if u.type == UnitType.SAGE:
+                            f += 1; i += 1; g += 1
+                        elif u.type == UnitType.HERBALIST:
+                            f += 2
+                prod = [f, i, g]
+
             provinces[pid] = {
                 "name": prov.name,
                 "terrain": TERRAIN_SHORT[prov.terrain],
@@ -683,14 +698,29 @@ class Game:
                 "buildings": [BUILDING_SHORT[b.type] for b in prov.buildings if b.done],
                 "adjacent": prov.adjacent,
                 "defense": prov.defense_bonus,
+                "income": prod,
             }
 
         players = {}
         for pid, p in self.players.items():
+            # Calculate total income for this player
+            inc = [0, 0, 0]
+            if p.alive:
+                for prov in self.player_provinces(pid):
+                    pi = provinces.get(prov.id, {}).get("income")
+                    if pi:
+                        inc[0] += pi[0]; inc[1] += pi[1]; inc[2] += pi[2]
+                # Upkeep
+                upkeep = sum(1 for u in self.player_units(pid)
+                             if u.type not in (UnitType.MILITIA, UnitType.SCOUT))
+                inc[0] -= upkeep
+                inc[2] += self._calc_trade_income(pid)
+
             players[pid] = {
                 "civ": p.civ,
                 "age": p.age,
                 "resources": p.resources,
+                "income": inc,
                 "techs": [t.value for t in p.techs],
                 "alive": p.alive,
                 "provinces": len(self.player_provinces(pid)),

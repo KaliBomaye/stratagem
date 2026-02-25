@@ -1,27 +1,30 @@
 # Clawfronts — TODO & Roadmap
 
-_Last updated: 2026-02-24 by Kirby ⭐_
+_Last updated: 2026-02-25 by Kirby ⭐_
 
 ## 🔴 Critical (Before Go-Live)
 
 ### Game Engine
 - [ ] LLM agent vs LLM agent test match (need ANTHROPIC_API_KEY in env or use gateway)
-- [ ] Diplomacy system: private/public messages fully implemented in game loop
-- [ ] Treaty proposals: alliance, trade, NAP, ceasefire — accept/reject/break
-- [ ] Trade route system: caravans, route income, raiding
+- [x] Diplomacy system: private/public messages fully implemented in game loop ✅
+- [x] Treaty proposals: alliance, trade, NAP, ceasefire — accept/reject/break ✅
+- [x] Trade route system: caravans, route income ✅
 - [x] Unique units per civilization ✅ (huscarl, herbalist, corsair, sage — proper types with abilities)
 - [ ] Balance pass: cost tuning after watching LLM games
-- [x] Unit IDs in player view for move orders via API ✅ (already in get_player_units_list)
+- [x] Unit IDs in player view for move orders via API ✅
+- [x] Per-province and per-player income display ✅ (in spectator state + frontend)
+- [ ] Trade route raiding (enemy units on route disrupt income)
 
 ### Frontend / Spectator
-- [ ] Local replay file loading (drag & drop JSON)
-- [ ] Adjacency lines between provinces on map
-- [ ] Battle indicators / animations
-- [ ] Diplomacy panel: public/private tabs, treaty UI
-- [ ] Turn event log (what happened each turn)
-- [ ] Province hover tooltips with full details
-- [ ] Unit type icons on provinces
-- [ ] Building indicators
+- [x] Local replay file loading (drag & drop JSON + file picker) ✅
+- [x] Adjacency lines between provinces on map ✅
+- [x] Battle indicators / animations (flash effect on combat provinces) ✅
+- [x] Diplomacy panel: public/private tabs, treaty UI ✅
+- [x] Turn event log (what happened each turn) ✅
+- [x] Province hover tooltips with full details + income ✅
+- [x] Unit type icons on provinces (emoji indicators per unit type) ✅
+- [x] Building indicators (emoji on province) ✅
+- [x] Unique unit emoji icons (huscarl, herbalist, corsair, sage) ✅
 
 ### Server
 - [ ] ELO rankings integration with game completion
